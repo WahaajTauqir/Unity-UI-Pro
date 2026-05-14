@@ -1,0 +1,16 @@
+{
+    "name": "NovaGlass",
+    "rootNamespace": "NovaGlass",
+    "references": [
+        "Nova"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
