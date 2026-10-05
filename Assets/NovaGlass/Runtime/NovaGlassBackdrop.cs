@@ -209,7 +209,7 @@ namespace NovaGlass
             if (rtA != null && rtB != null && currentRtSize.x == w && currentRtSize.y == h) return;
             ReleaseRenderTextures();
 
-            var desc = new RenderTextureDescriptor(w, h, RenderTextureFormat.DefaultHDR, 0)
+            var desc = new RenderTextureDescriptor(w, h, RenderTextureFormat.DefaultHDR, 24)
             {
                 msaaSamples       = 1,
                 useMipMap         = false,

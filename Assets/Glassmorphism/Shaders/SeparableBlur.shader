@@ -8,73 +8,68 @@ Shader "Glassmorphism/SeparableBlur"
 
     SubShader
     {
-        Tags { "RenderType" = "Opaque" "RenderPipeline" = "UniversalPipeline" }
+        Tags { "RenderType" = "Opaque" }
         ZTest Always Cull Off ZWrite Off
 
-        HLSLINCLUDE
-        #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+        CGINCLUDE
+        #include "UnityCG.cginc"
 
-        TEXTURE2D(_MainTex);
-        SAMPLER(sampler_MainTex);
+        sampler2D _MainTex;
         float4 _MainTex_TexelSize;
-        float  _BlurSize;
+        float _BlurSize;
 
-        struct Attributes
+        struct v2f
         {
-            float4 positionOS : POSITION;
-            float2 uv         : TEXCOORD0;
+            float4 pos : SV_POSITION;
+            float2 uv  : TEXCOORD0;
         };
 
-        struct Varyings
+        v2f Vert(appdata_img v)
         {
-            float4 positionCS : SV_POSITION;
-            float2 uv         : TEXCOORD0;
-        };
-
-        Varyings Vert(Attributes IN)
-        {
-            Varyings OUT;
-            OUT.positionCS = TransformObjectToHClip(IN.positionOS.xyz);
-            OUT.uv         = IN.uv;
-            return OUT;
+            v2f o;
+            // Graphics.Blit mesh is already in clip space.
+            o.pos = float4(v.vertex.xy, 0.0, 1.0);
+            o.uv = v.texcoord;
+            return o;
         }
 
         static const float kWeights[5] = { 0.227027, 0.1945946, 0.1216216, 0.054054, 0.016216 };
 
-        float4 GaussianBlur(float2 uv, float2 dir)
+        fixed4 GaussianBlur(float2 uv, float2 dir)
         {
             float2 stepUV = _MainTex_TexelSize.xy * dir * _BlurSize;
-            float4 col    = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, uv) * kWeights[0];
+            fixed4 col = tex2D(_MainTex, uv) * kWeights[0];
 
-            UNITY_UNROLL
             for (int i = 1; i < 5; ++i)
             {
-                col += SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, uv + stepUV * i) * kWeights[i];
-                col += SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, uv - stepUV * i) * kWeights[i];
+                col += tex2D(_MainTex, uv + stepUV * i) * kWeights[i];
+                col += tex2D(_MainTex, uv - stepUV * i) * kWeights[i];
             }
             return col;
         }
 
-        float4 FragHorizontal(Varyings IN) : SV_Target { return GaussianBlur(IN.uv, float2(1, 0)); }
-        float4 FragVertical  (Varyings IN) : SV_Target { return GaussianBlur(IN.uv, float2(0, 1)); }
-        ENDHLSL
+        fixed4 FragHorizontal(v2f i) : SV_Target { return GaussianBlur(i.uv, float2(1, 0)); }
+        fixed4 FragVertical  (v2f i) : SV_Target { return GaussianBlur(i.uv, float2(0, 1)); }
+        ENDCG
 
         Pass
         {
             Name "BlurH"
-            HLSLPROGRAM
+            CGPROGRAM
             #pragma vertex   Vert
             #pragma fragment FragHorizontal
-            ENDHLSL
+            ENDCG
         }
 
         Pass
         {
             Name "BlurV"
-            HLSLPROGRAM
+            CGPROGRAM
             #pragma vertex   Vert
             #pragma fragment FragVertical
-            ENDHLSL
+            ENDCG
         }
     }
+
+    Fallback Off
 }

@@ -34,8 +34,9 @@ Shader "NovaGlass/SeparableBlur"
         Varyings Vert(Attributes IN)
         {
             Varyings OUT;
-            OUT.positionCS = TransformObjectToHClip(IN.positionOS.xyz);
-            OUT.uv         = IN.uv;
+            // Graphics.Blit / SRP fullscreen mesh already provides clip-space positions.
+            OUT.positionCS = float4(IN.positionOS.xyz, 1.0);
+            OUT.uv = IN.uv;
             return OUT;
         }
 
