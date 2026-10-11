@@ -289,8 +289,9 @@ namespace Glassmorphism
                 sRGB             = true,
             };
 
-            rtA = new RenderTexture(desc) { name = "GlassPanel_A", hideFlags = HideFlags.HideAndDontSave };
-            rtB = new RenderTexture(desc) { name = "GlassPanel_B", hideFlags = HideFlags.HideAndDontSave };
+            rtA = new RenderTexture(desc) { name = "GlassPanel_A", hideFlags = HideFlags.HideAndDontSave, filterMode = FilterMode.Bilinear };
+            desc.depthBufferBits = 0;
+            rtB = new RenderTexture(desc) { name = "GlassPanel_B", hideFlags = HideFlags.HideAndDontSave, filterMode = FilterMode.Bilinear };
             rtA.Create();
             rtB.Create();
             currentRtSize = new Vector2Int(w, h);

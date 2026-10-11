@@ -35,7 +35,7 @@ One off-screen camera render + `2 × blurIterations` blit passes per panel per f
 
 ## Files
 
-- `Shaders/NovaGlassBlur.shader` — separable Gaussian, two passes (`BlurH`, `BlurV`).
+- `Shaders/NovaGlassBlur.shader` — separable Gaussian approximation, two passes (`BlurH`, `BlurV`) with five samples each.
 - `Runtime/NovaGlassBackdrop.cs` — the component you attach.
 - `Runtime/NovaGlass.asmdef` — assembly definition, references `Nova`.
 

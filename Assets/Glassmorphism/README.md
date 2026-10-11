@@ -1,4 +1,22 @@
-# Glassmorphism — Standalone Frosted-Glass Panels for URP
+# Glassmorphism — Frosted-Glass Panels for URP
+
+`GlassUIBlur` is the uGUI blur used by `Assets/Scenes/UI.unity`. It captures the Screen Space Camera canvas at the source camera's full pixel dimensions so the canvas does not change scale, then downsamples once and applies separable Gaussian blur. The panel displays its screen region through `RawImage.uvRect`. The scene uses `Downsample = 2`, `Blur Size = 1`, and `Blur Iterations = 2`. `HDR Capture` is off by default to reduce render target bandwidth. Enable it only if the glass must preserve HDR highlights.
+
+This UI path still renders an extra camera each frame. The cost scales with the capture resolution and scene complexity. Profile the blur camera in Unity's Frame Debugger or GPU Profiler on the target device before adding many blur panels.
+
+### uGUI panel appearance
+
+Assign a sprite to **Panel Image** on `GlassUIBlur`. Its alpha supplies the glass shape and clips child content through the `Mask` on the same GameObject. **Image Color** controls the decorative overlay color and opacity independently of that mask. **Preserve Image Aspect** fits the sprite inside the panel; turn it off to stretch the shape to the panel rect. Tint, corner radius and border are also composited in this single glass graphic.
+
+Place buttons and text beneath the glass GameObject. No separate mask Image or decorative child Image is needed. `UI.unity` has been migrated to this setup; the `Content` child only holds the foreground button. The combined shader is [Shaders/GlassUIPanel.shader](Shaders/GlassUIPanel.shader). Keep a serialized reference to both shaders on the component so they are included in builds.
+
+The sprite mask uses an alpha cutoff of 0.001 with a smoothed boundary. A translucent sprite fill therefore keeps the blurred backdrop visible at full opacity; the original sprite alpha still controls the decoration.
+
+The decorative image blends over the backdrop in sRGB display space, then converts back to linear in Linear projects. This matches sRGB image compositing instead of brightening translucent fills through linear blending. Image Color is a display-space multiplier; white at full alpha preserves the source image. This adds color conversion math without extra texture samples or rendering passes. At zero image opacity, the backdrop color is left unchanged.
+
+This removes two UI graphics from the sample hierarchy. The live camera capture and blur passes are still the main rendering cost; adding the panel sprite does not add a capture or blur pass.
+
+The world-space `GlassPanel` component is described below.
 
 No Nova, no uGUI, no third-party dependencies. Drop a `GlassPanel` component onto a GameObject and you get a world-space frosted-glass quad with rounded corners, tint, and an edge highlight — all driven by a real per-panel backdrop blur.
 
@@ -32,9 +50,10 @@ One off-screen camera render + `2 × blurIterations` blit passes per panel per f
 
 ## Files
 
-- [Shaders/SeparableBlur.shader](Shaders/SeparableBlur.shader) — two-pass (`BlurH`, `BlurV`) Gaussian, 9-tap.
+- [Shaders/SeparableBlur.shader](Shaders/SeparableBlur.shader) — two-pass (`BlurH`, `BlurV`) Gaussian approximation, 5 samples per pass.
 - [Shaders/GlassPanel.shader](Shaders/GlassPanel.shader) — rounded-rect SDF + tint + border, samples the blurred backdrop.
 - [Runtime/GlassPanel.cs](Runtime/GlassPanel.cs) — the only component you attach.
+- [Runtime/GlassUIBlur.cs](Runtime/GlassUIBlur.cs) — uGUI component used by `Assets/Scenes/UI.unity`.
 - [Runtime/Glassmorphism.asmdef](Runtime/Glassmorphism.asmdef) — no external references.
 
 ## Caveats

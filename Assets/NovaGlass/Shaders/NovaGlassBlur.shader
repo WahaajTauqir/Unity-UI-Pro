@@ -34,25 +34,20 @@ Shader "NovaGlass/SeparableBlur"
         Varyings Vert(Attributes IN)
         {
             Varyings OUT;
-            // Graphics.Blit / SRP fullscreen mesh already provides clip-space positions.
-            OUT.positionCS = float4(IN.positionOS.xyz, 1.0);
+            OUT.positionCS = TransformObjectToHClip(IN.positionOS.xyz);
             OUT.uv = IN.uv;
             return OUT;
         }
 
-        static const float kWeights[5] = { 0.227027, 0.1945946, 0.1216216, 0.054054, 0.016216 };
-
         float4 GaussianBlur(float2 uv, float2 dir)
         {
             float2 stepUV = _MainTex_TexelSize.xy * dir * _BlurSize;
-            float4 col    = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, uv) * kWeights[0];
-
-            UNITY_UNROLL
-            for (int i = 1; i < 5; ++i)
-            {
-                col += SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, uv + stepUV * i) * kWeights[i];
-                col += SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, uv - stepUV * i) * kWeights[i];
-            }
+            // Bilinear filtering approximates the nine-tap kernel with five fetches.
+            float4 col = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, uv) * 0.227027;
+            col += SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, uv + stepUV * 1.3846153) * 0.3162162;
+            col += SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, uv - stepUV * 1.3846153) * 0.3162162;
+            col += SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, uv + stepUV * 3.2307670) * 0.07027;
+            col += SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, uv - stepUV * 3.2307670) * 0.07027;
             return col;
         }
 

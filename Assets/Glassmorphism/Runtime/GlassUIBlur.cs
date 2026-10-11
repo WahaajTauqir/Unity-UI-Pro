@@ -1,16 +1,18 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
 namespace Glassmorphism
 {
     /// Frosted-glass backdrop blur for uGUI.
-    /// Captures the Screen Space - Camera UI, blurs a stable full-frame RT,
-    /// and samples this panel's region via continuous RawImage.uvRect —
+    /// Captures the Screen Space - Camera UI at its native resolution, blurs a
+    /// downsampled copy, and samples this panel's region via continuous RawImage.uvRect —
     /// so scrollers don't jitter from integer crop snapping / 1-frame lag.
     [ExecuteAlways]
     [DisallowMultipleComponent]
     [RequireComponent(typeof(RawImage))]
     [RequireComponent(typeof(RectTransform))]
+    [RequireComponent(typeof(Mask))]
     [AddComponentMenu("Glassmorphism/Glass UI Blur")]
     public sealed class GlassUIBlur : MonoBehaviour
     {
@@ -20,48 +22,98 @@ namespace Glassmorphism
         [Tooltip("Canvas that holds the UI to blur (behind this panel). Leave empty to auto-find.")]
         public Canvas sourceCanvas;
 
+        [Tooltip("Blur at 1/N of screen resolution while capturing UI at native size to preserve its layout.")]
         [Range(1, 8)] public int downsample = 2;
-        [Tooltip("Kept for GlassPanel parity. UI frost strength is driven by Blur Iterations.")]
-        [Range(0f, 8f)] public float blurSize = 3f;
-        [Tooltip("How many downsample/upsample passes to run. Higher = frostier.")]
-        [Range(1, 6)] public int blurIterations = 4;
+        [Tooltip("Blur radius in downsampled texture pixels.")]
+        [Range(0f, 8f)] public float blurSize = 1f;
+        [Tooltip("Number of horizontal and vertical blur pairs. One is usually enough.")]
+        [Range(1, 6)] public int blurIterations = 1;
+        [Tooltip("Use a higher bandwidth HDR capture only when the glass must preserve values above 1.")]
+        public bool hdrCapture;
 
+        [Header("Panel Appearance")]
+        [Tooltip("One sprite supplies the glass shape and decorative overlay. Its alpha also clips child UI.")]
+        public Sprite panelImage;
+        public Color imageColor = Color.white;
+        public bool preserveImageAspect = true;
+        [Tooltip("Use the assigned sprite's alpha as the panel and child-content mask. Decoration opacity is independent.")]
+        public bool maskWithPanelImage = true;
+        [Tooltip("Alpha controls how strongly the tint covers the backdrop.")]
+        public Color tint = Color.clear;
+        [Min(0f)] public float cornerRadius;
+        [Min(0f)] public float borderWidth;
+        public Color borderColor = new Color(1f, 1f, 1f, 0.5f);
+
+        [Header("Shaders")]
         [Tooltip("Override blur shader. Leave null to auto-load Glassmorphism/SeparableBlur.")]
         public Shader blurShader;
+        [Tooltip("UI shader that combines the backdrop, panel image, tint and border.")]
+        public Shader panelShader;
 
         RawImage rawImage;
         RectTransform rectTransform;
         Camera blurCamera;
         Material blurMaterial;
+        Material panelMaterial;
+        Material previousMaterial;
         RenderTexture fullRt;
-        RenderTexture blurScratch;
+        RenderTexture blurRtA;
+        RenderTexture blurRtB;
         Vector2Int currentFullSize;
+        Vector2Int currentBlurSize;
+        RenderTextureFormat currentFormat;
+        static readonly int IdBlurSize = Shader.PropertyToID("_BlurSize");
+        static readonly int IdPanelRect = Shader.PropertyToID("_PanelRect");
+        static readonly int IdBackdropUV = Shader.PropertyToID("_BackdropUV");
+        static readonly int IdOverlayTex = Shader.PropertyToID("_OverlayTex");
+        static readonly int IdOverlayUV = Shader.PropertyToID("_OverlayUV");
+        static readonly int IdOverlayRect = Shader.PropertyToID("_OverlayRect");
+        static readonly int IdOverlayColor = Shader.PropertyToID("_OverlayColor");
+        static readonly int IdOverlayEnabled = Shader.PropertyToID("_OverlayEnabled");
+        static readonly int IdMaskWithImage = Shader.PropertyToID("_MaskWithImage");
+        static readonly int IdTint = Shader.PropertyToID("_TintColor");
+        static readonly int IdCornerRadius = Shader.PropertyToID("_CornerRadius");
+        static readonly int IdBorderWidth = Shader.PropertyToID("_BorderWidth");
+        static readonly int IdBorderColor = Shader.PropertyToID("_BorderColor");
         static readonly Vector3[] Corners = new Vector3[4];
+        readonly List<Graphic> panelGraphics = new List<Graphic>();
+        readonly List<Graphic> hiddenGraphics = new List<Graphic>();
 
         void OnEnable()
         {
             rawImage = GetComponent<RawImage>();
+            previousMaterial = rawImage.material;
+            Mask mask = GetComponent<Mask>();
+            if (mask == null) mask = gameObject.AddComponent<Mask>();
+            mask.showMaskGraphic = true;
             rectTransform = GetComponent<RectTransform>();
             ResolveSourceCanvas();
+#if UNITY_EDITOR
+            UnityEditor.EditorApplication.QueuePlayerLoopUpdate();
+#endif
         }
 
         void OnDisable()
         {
-            if (rawImage != null && (rawImage.texture == fullRt || rawImage.texture == blurScratch))
+            if (rawImage != null && (rawImage.texture == fullRt || rawImage.texture == blurRtA))
             {
                 rawImage.texture = null;
                 rawImage.uvRect = new Rect(0f, 0f, 1f, 1f);
             }
 
             ReleaseRenderTextures();
+            if (rawImage != null && rawImage.material == panelMaterial)
+                rawImage.material = previousMaterial;
             DestroySafe(ref blurCamera);
             DestroySafe(ref blurMaterial);
+            DestroySafe(ref panelMaterial);
         }
 
         void LateUpdate()
         {
             Canvas.ForceUpdateCanvases();
             UpdateBlur();
+            ApplyPanelAppearance();
         }
 
         void UpdateBlur()
@@ -74,81 +126,70 @@ namespace Glassmorphism
 
             EnsureScreenSpaceCamera(cam);
             EnsureBlurCamera();
+            EnsureBlurMaterial();
+            if (blurMaterial == null) return;
 
             if (!TryGetScreenRect(cam, out Rect screenRect)) return;
             if (screenRect.width < 2f || screenRect.height < 2f) return;
 
             int maxRt = SystemInfo.maxTextureSize;
-            int fullW = Mathf.Clamp(cam.pixelWidth / Mathf.Max(1, downsample), 2, maxRt);
-            int fullH = Mathf.Clamp(cam.pixelHeight / Mathf.Max(1, downsample), 2, maxRt);
-            EnsureFullRt(fullW, fullH);
-
-            // Hide this panel so same-canvas capture does not blur itself.
-            bool wasEnabled = rawImage.enabled;
-            rawImage.enabled = false;
+            int fullW = Mathf.Clamp(cam.pixelWidth, 2, maxRt);
+            int fullH = Mathf.Clamp(cam.pixelHeight, 2, maxRt);
+            int blurW = Mathf.Max(2, fullW / Mathf.Max(1, downsample));
+            int blurH = Mathf.Max(2, fullH / Mathf.Max(1, downsample));
+            EnsureRenderTextures(fullW, fullH, blurW, blurH,
+                hdrCapture ? RenderTextureFormat.DefaultHDR : RenderTextureFormat.Default);
 
             Camera previousWorldCamera = sourceCanvas.worldCamera;
-            sourceCanvas.worldCamera = blurCamera;
+            try
+            {
+                // Foreground content must stay sharp and must not enter the backdrop.
+                GetComponentsInChildren(false, panelGraphics);
+                hiddenGraphics.Clear();
+                foreach (Graphic graphic in panelGraphics)
+                {
+                    if (!graphic.enabled) continue;
+                    hiddenGraphics.Add(graphic);
+                    graphic.enabled = false;
+                }
+                sourceCanvas.worldCamera = blurCamera;
+                ConfigureBlurCamera(cam);
+                blurCamera.Render();
+            }
+            finally
+            {
+                sourceCanvas.worldCamera = previousWorldCamera;
+                foreach (Graphic graphic in hiddenGraphics)
+                {
+                    if (graphic != null) graphic.enabled = true;
+                }
+                hiddenGraphics.Clear();
+                Canvas.ForceUpdateCanvases();
+            }
 
-            ConfigureBlurCamera(cam);
-            blurCamera.Render();
-
-            sourceCanvas.worldCamera = previousWorldCamera;
-            rawImage.enabled = wasEnabled;
-
-            ApplyDownsampleBlur(fullRt, blurScratch, blurIterations);
+            Graphics.Blit(fullRt, blurRtA);
+            blurMaterial.SetFloat(IdBlurSize, blurSize);
+            for (int i = 0; i < blurIterations; i++)
+            {
+                Graphics.Blit(blurRtA, blurRtB, blurMaterial, 0);
+                Graphics.Blit(blurRtB, blurRtA, blurMaterial, 1);
+            }
 
             // Continuous UVs — no integer CopyTexture crop, so scroll motion stays smooth.
             float screenW = Mathf.Max(1f, cam.pixelWidth);
             float screenH = Mathf.Max(1f, cam.pixelHeight);
-            float u0 = Mathf.Clamp01(screenRect.xMin / screenW);
-            float u1 = Mathf.Clamp01(screenRect.xMax / screenW);
-            float v0 = Mathf.Clamp01(screenRect.yMin / screenH);
-            float v1 = Mathf.Clamp01(screenRect.yMax / screenH);
+            Rect viewport = cam.pixelRect;
+            float u0 = (screenRect.xMin - viewport.xMin) / screenW;
+            float u1 = (screenRect.xMax - viewport.xMin) / screenW;
+            float v0 = (screenRect.yMin - viewport.yMin) / screenH;
+            float v1 = (screenRect.yMax - viewport.yMin) / screenH;
 
-            rawImage.texture = fullRt;
+            if (rawImage.texture != blurRtA)
+                rawImage.texture = blurRtA;
             // Screen space and RenderTexture UVs both use bottom-left origin.
-            rawImage.uvRect = new Rect(u0, v0, u1 - u0, v1 - v0);
-        }
-
-        /// Soft frosted look via repeated bilinear downsample/upsample.
-        static void ApplyDownsampleBlur(RenderTexture target, RenderTexture scratch, int iterations)
-        {
-            int passes = Mathf.Max(1, iterations);
-            RenderTexture current = target;
-
-            for (int i = 0; i < passes; i++)
-            {
-                int w = Mathf.Max(2, current.width / 2);
-                int h = Mathf.Max(2, current.height / 2);
-                RenderTexture down = RenderTexture.GetTemporary(w, h, 0, current.format);
-                down.filterMode = FilterMode.Bilinear;
-                Graphics.Blit(current, down);
-                if (current != target)
-                    RenderTexture.ReleaseTemporary(current);
-                current = down;
-            }
-
-            while (current.width < target.width || current.height < target.height)
-            {
-                int w = Mathf.Min(target.width, current.width * 2);
-                int h = Mathf.Min(target.height, current.height * 2);
-                if (w == current.width && h == current.height)
-                    break;
-
-                RenderTexture up = RenderTexture.GetTemporary(w, h, 0, current.format);
-                up.filterMode = FilterMode.Bilinear;
-                Graphics.Blit(current, up);
-                RenderTexture.ReleaseTemporary(current);
-                current = up;
-            }
-
-            Graphics.Blit(current, target);
-            if (current != target)
-                RenderTexture.ReleaseTemporary(current);
-
-            if (scratch != null)
-                scratch.DiscardContents();
+            Rect uvRect = new Rect(u0, v0, u1 - u0, v1 - v0);
+            if (rawImage.uvRect != uvRect)
+                rawImage.uvRect = uvRect;
         }
 
         void ResolveSourceCanvas()
@@ -199,11 +240,10 @@ namespace Glassmorphism
             blurCamera.cullingMask = cam.cullingMask;
             blurCamera.rect = new Rect(0f, 0f, 1f, 1f);
             blurCamera.allowMSAA = false;
-            blurCamera.allowHDR = cam.allowHDR;
+            blurCamera.allowHDR = hdrCapture && cam.allowHDR;
             blurCamera.depth = cam.depth - 1;
             blurCamera.clearFlags = cam.clearFlags;
             blurCamera.backgroundColor = cam.backgroundColor;
-            blurCamera.ResetProjectionMatrix();
             blurCamera.projectionMatrix = cam.projectionMatrix;
             blurCamera.fieldOfView = cam.fieldOfView;
             blurCamera.orthographic = cam.orthographic;
@@ -232,30 +272,104 @@ namespace Glassmorphism
             float yMin = Mathf.Min(Mathf.Min(s0.y, s1.y), Mathf.Min(s2.y, s3.y));
             float yMax = Mathf.Max(Mathf.Max(s0.y, s1.y), Mathf.Max(s2.y, s3.y));
 
-            xMin = Mathf.Clamp(xMin, 0f, cam.pixelWidth);
-            xMax = Mathf.Clamp(xMax, 0f, cam.pixelWidth);
-            yMin = Mathf.Clamp(yMin, 0f, cam.pixelHeight);
-            yMax = Mathf.Clamp(yMax, 0f, cam.pixelHeight);
-
             rect = Rect.MinMaxRect(xMin, yMin, xMax, yMax);
-            return rect.width >= 2f && rect.height >= 2f;
+            return rect.width >= 2f && rect.height >= 2f && rect.Overlaps(cam.pixelRect);
         }
 
         void EnsureBlurCamera()
         {
             if (blurCamera != null) return;
             var go = new GameObject("~GlassUIBlurCam") { hideFlags = HideFlags.HideAndDontSave };
-            go.transform.SetParent(transform, worldPositionStays: false);
             blurCamera = go.AddComponent<Camera>();
             blurCamera.enabled = false;
         }
 
-        void EnsureFullRt(int w, int h)
+        void EnsureBlurMaterial()
         {
-            if (fullRt != null && currentFullSize.x == w && currentFullSize.y == h) return;
+            if (blurMaterial != null) return;
+            Shader shader = blurShader != null ? blurShader : Shader.Find("Glassmorphism/SeparableBlur");
+            if (shader == null)
+            {
+                Debug.LogError("[GlassUIBlur] Shader 'Glassmorphism/SeparableBlur' not found.", this);
+                return;
+            }
+            blurMaterial = new Material(shader) { hideFlags = HideFlags.HideAndDontSave };
+        }
+
+        void ApplyPanelAppearance()
+        {
+            if (rawImage == null || rectTransform == null) return;
+            Shader shader = panelShader != null ? panelShader : Shader.Find("Glassmorphism/GlassUIPanel");
+            if (shader == null) return;
+            if (panelMaterial != null && panelMaterial.shader != shader)
+            {
+                rawImage.material = previousMaterial;
+                DestroySafe(ref panelMaterial);
+            }
+            if (panelMaterial == null)
+                panelMaterial = new Material(shader) { hideFlags = HideFlags.HideAndDontSave };
+            if (rawImage.material != panelMaterial)
+                rawImage.material = panelMaterial;
+
+            Rect rect = rectTransform.rect;
+            Vector4 imageRect = new Vector4(0f, 0f, 1f, 1f);
+            if (panelImage != null && preserveImageAspect && rect.width > 0f && rect.height > 0f)
+            {
+                float imageAspect = panelImage.rect.width / Mathf.Max(1f, panelImage.rect.height);
+                float panelAspect = rect.width / rect.height;
+                if (imageAspect > panelAspect)
+                {
+                    imageRect.w = panelAspect / imageAspect;
+                    imageRect.y = (1f - imageRect.w) * 0.5f;
+                }
+                else
+                {
+                    imageRect.z = imageAspect / panelAspect;
+                    imageRect.x = (1f - imageRect.z) * 0.5f;
+                }
+            }
+            Vector4 imageUV = panelImage != null
+                ? UnityEngine.Sprites.DataUtility.GetOuterUV(panelImage) : new Vector4(0f, 0f, 1f, 1f);
+            ApplyPanelUniforms(panelMaterial, rect, imageRect, imageUV);
+            // A Mask creates a stencil material copy. Keep that actual drawing material in sync.
+            Material renderingMaterial = rawImage.materialForRendering;
+            if (renderingMaterial != panelMaterial)
+                ApplyPanelUniforms(renderingMaterial, rect, imageRect, imageUV);
+            if (rawImage.canvasRenderer.popMaterialCount > 0)
+            {
+                Material popMaterial = rawImage.canvasRenderer.GetPopMaterial(0);
+                if (popMaterial != null)
+                    ApplyPanelUniforms(popMaterial, rect, imageRect, imageUV);
+            }
+        }
+
+        void ApplyPanelUniforms(Material material, Rect rect, Vector4 imageRect, Vector4 imageUV)
+        {
+            material.SetVector(IdPanelRect, new Vector4(rect.xMin, rect.yMin,
+                Mathf.Max(0.0001f, rect.width), Mathf.Max(0.0001f, rect.height)));
+            Rect uv = rawImage.uvRect;
+            material.SetVector(IdBackdropUV, new Vector4(uv.x, uv.y,
+                Mathf.Max(0.0001f, uv.width), Mathf.Max(0.0001f, uv.height)));
+            material.SetTexture(IdOverlayTex, panelImage != null ? panelImage.texture : Texture2D.whiteTexture);
+            material.SetVector(IdOverlayRect, imageRect);
+            material.SetVector(IdOverlayUV, imageUV);
+            material.SetColor(IdOverlayColor, imageColor);
+            material.SetFloat(IdOverlayEnabled, panelImage != null ? 1f : 0f);
+            material.SetFloat(IdMaskWithImage, maskWithPanelImage ? 1f : 0f);
+            material.SetColor(IdTint, tint);
+            material.SetFloat(IdCornerRadius, cornerRadius);
+            material.SetFloat(IdBorderWidth, borderWidth);
+            material.SetColor(IdBorderColor, borderColor);
+        }
+
+        void EnsureRenderTextures(int fullW, int fullH, int blurW, int blurH, RenderTextureFormat format)
+        {
+            if (fullRt != null && blurRtA != null && blurRtB != null &&
+                currentFullSize.x == fullW && currentFullSize.y == fullH &&
+                currentBlurSize.x == blurW && currentBlurSize.y == blurH && currentFormat == format) return;
             ReleaseRenderTextures();
 
-            var desc = new RenderTextureDescriptor(w, h, RenderTextureFormat.DefaultHDR, 24)
+            var desc = new RenderTextureDescriptor(fullW, fullH, format, 24)
             {
                 msaaSamples = 1,
                 useMipMap = false,
@@ -269,23 +383,39 @@ namespace Glassmorphism
                 filterMode = FilterMode.Bilinear,
                 wrapMode = TextureWrapMode.Clamp,
             };
-            blurScratch = new RenderTexture(desc)
+            fullRt.Create();
+
+            desc.width = blurW;
+            desc.height = blurH;
+            desc.depthBufferBits = 0;
+            blurRtA = new RenderTexture(desc)
             {
-                name = "GlassUIBlur_Scratch",
+                name = "GlassUIBlur_A",
                 hideFlags = HideFlags.HideAndDontSave,
                 filterMode = FilterMode.Bilinear,
                 wrapMode = TextureWrapMode.Clamp,
             };
-            fullRt.Create();
-            blurScratch.Create();
-            currentFullSize = new Vector2Int(w, h);
+            blurRtB = new RenderTexture(desc)
+            {
+                name = "GlassUIBlur_B",
+                hideFlags = HideFlags.HideAndDontSave,
+                filterMode = FilterMode.Bilinear,
+                wrapMode = TextureWrapMode.Clamp,
+            };
+            blurRtA.Create();
+            blurRtB.Create();
+            currentFullSize = new Vector2Int(fullW, fullH);
+            currentBlurSize = new Vector2Int(blurW, blurH);
+            currentFormat = format;
         }
 
         void ReleaseRenderTextures()
         {
             if (fullRt != null) { fullRt.Release(); DestroySafe(fullRt); fullRt = null; }
-            if (blurScratch != null) { blurScratch.Release(); DestroySafe(blurScratch); blurScratch = null; }
+            if (blurRtA != null) { blurRtA.Release(); DestroySafe(blurRtA); blurRtA = null; }
+            if (blurRtB != null) { blurRtB.Release(); DestroySafe(blurRtB); blurRtB = null; }
             currentFullSize = default;
+            currentBlurSize = default;
         }
 
         static void DestroySafe<T>(ref T obj) where T : Object
