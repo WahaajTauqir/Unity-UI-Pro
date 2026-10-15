@@ -4,7 +4,7 @@ using UnityEngine.UI;
 
 namespace Glassmorphism
 {
-    /// World space uGUI glass for a perspective camera, including handheld AR.
+    /// World space and Screen Space - Camera uGUI glass, including handheld AR.
     /// WorldGlassRendererFeature supplies one shared backdrop per viewing camera.
     [ExecuteAlways, DisallowMultipleComponent]
     [RequireComponent(typeof(RawImage), typeof(Mask))]
@@ -16,7 +16,11 @@ namespace Glassmorphism
 
         [Header("Panel Appearance")]
         public Sprite panelImage;
+        public GlassImageType imageType = GlassImageType.Simple;
+        [Tooltip("Sliced images: higher values make the sprite borders thinner. Requires borders in Sprite Editor.")]
+        [Min(0.01f)] public float pixelsPerUnitMultiplier = 1f;
         public Color imageColor = Color.white;
+        [Tooltip("Fit the sprite in Simple mode. Sliced sprites fill the panel rect.")]
         public bool preserveImageAspect = true;
         [Tooltip("Clip the glass and child UI to the sprite silhouette, independently of its decorative opacity.")]
         public bool maskWithPanelImage = true;
@@ -59,7 +63,7 @@ namespace Glassmorphism
             foreach (WorldSpaceGlass panel in Panels)
             {
                 if (panel != null && panel.isActiveAndEnabled && panel.canvas != null
-                    && panel.canvas.isActiveAndEnabled && panel.canvas.renderMode == RenderMode.WorldSpace
+                    && panel.canvas.isActiveAndEnabled && panel.canvas.renderMode != RenderMode.ScreenSpaceOverlay
                     && panel.ViewingCamera == camera)
                     return true;
             }
@@ -133,7 +137,8 @@ namespace Glassmorphism
 
             Rect rect = rectTransform.rect;
             Vector4 imageRect = new Vector4(0, 0, 1, 1);
-            if (panelImage != null && preserveImageAspect && rect.width > 0 && rect.height > 0)
+            if (panelImage != null && !GlassImageSlicing.IsSliced(panelImage, imageType)
+                && preserveImageAspect && rect.width > 0 && rect.height > 0)
             {
                 float imageAspect = panelImage.rect.width / Mathf.Max(1, panelImage.rect.height);
                 float panelAspect = rect.width / rect.height;
@@ -164,6 +169,7 @@ namespace Glassmorphism
 
         void ApplyUniforms(Material target, Rect rect, Vector4 imageRect, Vector4 uv, float cameraId)
         {
+            GlassImageSlicing.Apply(target, panelImage, imageType, rect, canvas, pixelsPerUnitMultiplier);
             target.SetFloat(PanelCamera, cameraId);
             target.SetVector(PanelRect, new Vector4(rect.xMin, rect.yMin,
                 Mathf.Max(0.0001f, rect.width), Mathf.Max(0.0001f, rect.height)));

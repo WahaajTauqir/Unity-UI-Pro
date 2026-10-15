@@ -10,6 +10,8 @@ Downsampling now filters the source pixel footprint instead of taking a single s
 
 ### uGUI panel appearance
 
+**Image Type → Sliced** uses the sprite's Border values from Sprite Editor to preserve corners/edges as the panel resizes. **Pixels Per Unit Multiplier** adjusts border thickness: 1 uses the normal sprite/canvas pixel ratio, 2 halves the border thickness, and 0.5 doubles it. The same sliced UVs drive the decoration and sprite mask. Sliced images fill the panel rect; Preserve Image Aspect applies to Simple mode. A sprite with no borders falls back to Simple. This adds no texture samples or rendering passes. The extra shader Border Width/Color controls remain separate from the sprite's own sliced border.
+
 Assign a sprite to **Panel Image** on `GlassUIBlur`. Its alpha supplies the glass shape and clips child content through the `Mask` on the same GameObject. **Image Color** controls the decorative overlay color and opacity independently of that mask. **Preserve Image Aspect** fits the sprite inside the panel; turn it off to stretch the shape to the panel rect. Tint, corner radius and border are also composited in this single glass graphic.
 
 Place buttons and text beneath the glass GameObject. No separate mask Image or decorative child Image is needed. `UI.unity` has been migrated to this setup; the `Content` child only holds the foreground button. The combined shader is [Shaders/GlassUIPanel.shader](Shaders/GlassUIPanel.shader). Keep a serialized reference to both shaders on the component so they are included in builds.

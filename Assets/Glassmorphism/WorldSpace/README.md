@@ -2,6 +2,12 @@
 
 `WorldSpaceGlass` is a separate uGUI component for phone/tablet AR and normal perspective cameras. It uses `WorldGlassRendererFeature` to blur the camera color once per viewing camera. All panels viewed by that camera share the result. There are no capture cameras, CPU camera-image conversions, or capture-time UI toggles.
 
+The component supports both **World Space** and **Screen Space - Camera** canvases. For the latter, assign the viewing camera to the Canvas's Render Camera and the glass Source Camera. Screen Space Overlay is not supported. In either mode the backdrop includes the AR background and opaque geometry; it does not include other transparent UI. Use `GlassUIBlur` when you need to capture other screen space UI behind the panel.
+
+## Sliced images
+
+Set the sprite's Border values in Sprite Editor, then choose **Image Type → Sliced** on the glass component. **Pixels Per Unit Multiplier** scales the effective pixel density: 2 makes borders half as thick, 0.5 makes them twice as thick. This uses the sprite Pixels Per Unit and the canvas Reference Pixels Per Unit, like Unity's Image component. Border thickness is measured in local canvas units, so changing the world canvas scale changes its physical size normally. Slicing fills the panel rect; Preserve Image Aspect applies to Simple mode. Sprites without borders fall back to Simple. Decoration and mask use the same remapping, with no extra texture samples or render passes. The component's separate Border Width/Color adds a shader border and is not the sliced image border.
+
 ## Try it
 
 1. Drag `WorldSpaceGlassCanvas.prefab` into your scene and position/rotate it in front of your camera. It is a world space canvas about 0.354 × 0.270 metres at its default scale. In AR, parent it to your placed content/anchor.

@@ -34,7 +34,11 @@ namespace Glassmorphism
         [Header("Panel Appearance")]
         [Tooltip("One sprite supplies the glass shape and decorative overlay. Its alpha also clips child UI.")]
         public Sprite panelImage;
+        public GlassImageType imageType = GlassImageType.Simple;
+        [Tooltip("Sliced images: higher values make the sprite borders thinner. Requires borders in Sprite Editor.")]
+        [Min(0.01f)] public float pixelsPerUnitMultiplier = 1f;
         public Color imageColor = Color.white;
+        [Tooltip("Fit the sprite in Simple mode. Sliced sprites fill the panel rect.")]
         public bool preserveImageAspect = true;
         [Tooltip("Use the assigned sprite's alpha as the panel and child-content mask. Decoration opacity is independent.")]
         public bool maskWithPanelImage = true;
@@ -79,6 +83,13 @@ namespace Glassmorphism
         static readonly Vector3[] Corners = new Vector3[4];
         readonly List<Graphic> panelGraphics = new List<Graphic>();
         readonly List<Graphic> hiddenGraphics = new List<Graphic>();
+
+        void OnValidate()
+        {
+#if UNITY_EDITOR
+            UnityEditor.EditorApplication.QueuePlayerLoopUpdate();
+#endif
+        }
 
         void OnEnable()
         {
@@ -318,7 +329,8 @@ namespace Glassmorphism
 
             Rect rect = rectTransform.rect;
             Vector4 imageRect = new Vector4(0f, 0f, 1f, 1f);
-            if (panelImage != null && preserveImageAspect && rect.width > 0f && rect.height > 0f)
+            if (panelImage != null && !GlassImageSlicing.IsSliced(panelImage, imageType)
+                && preserveImageAspect && rect.width > 0f && rect.height > 0f)
             {
                 float imageAspect = panelImage.rect.width / Mathf.Max(1f, panelImage.rect.height);
                 float panelAspect = rect.width / rect.height;
@@ -350,6 +362,7 @@ namespace Glassmorphism
 
         void ApplyPanelUniforms(Material material, Rect rect, Vector4 imageRect, Vector4 imageUV)
         {
+            GlassImageSlicing.Apply(material, panelImage, imageType, rect, rawImage.canvas, pixelsPerUnitMultiplier);
             material.SetVector(IdPanelRect, new Vector4(rect.xMin, rect.yMin,
                 Mathf.Max(0.0001f, rect.width), Mathf.Max(0.0001f, rect.height)));
             Rect uv = rawImage.uvRect;

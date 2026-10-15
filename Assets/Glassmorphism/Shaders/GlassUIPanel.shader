@@ -15,6 +15,9 @@ Shader "Glassmorphism/GlassUIPanel"
         [HideInInspector] _BorderColor ("Border Color", Color) = (1,1,1,0.5)
         [HideInInspector] _CornerRadius ("Corner Radius", Float) = 0
         [HideInInspector] _BorderWidth ("Border Width", Float) = 0
+        [HideInInspector] _ImageSliced ("Sliced Image", Float) = 0
+        [HideInInspector] _SliceBorder ("Destination Borders", Vector) = (0,0,0,0)
+        [HideInInspector] _SliceUVBorder ("Source Borders", Vector) = (0,0,0,0)
         _StencilComp ("Stencil Comparison", Float) = 8
         _Stencil ("Stencil ID", Float) = 0
         _StencilOp ("Stencil Operation", Float) = 0
@@ -49,6 +52,7 @@ Shader "Glassmorphism/GlassUIPanel"
             #pragma multi_compile_local _ UNITY_UI_ALPHACLIP
             #include "UnityCG.cginc"
             #include "UnityUI.cginc"
+            #include "GlassImageSlicing.hlsl"
 
             sampler2D _MainTex, _OverlayTex;
             float4 _PanelRect, _BackdropUV, _OverlayRect, _OverlayUV, _ClipRect;
@@ -92,7 +96,9 @@ Shader "Glassmorphism/GlassUIPanel"
                 {
                     float2 imageUV = (localUV - _OverlayRect.xy) / _OverlayRect.zw;
                     float inside = step(0, imageUV.x) * step(imageUV.x, 1) * step(0, imageUV.y) * step(imageUV.y, 1);
-                    float2 atlasUV = lerp(_OverlayUV.xy, _OverlayUV.zw, saturate(imageUV));
+                    float2 sampledUV = saturate(imageUV);
+                    if (_ImageSliced > 0.5) sampledUV = GlassSliceUV(sampledUV);
+                    float2 atlasUV = lerp(_OverlayUV.xy, _OverlayUV.zw, sampledUV);
                     fixed4 imageSample = tex2D(_OverlayTex, atlasUV);
                     float overlayAlpha = imageSample.a * _OverlayColor.a * inside;
                     #ifdef UNITY_COLORSPACE_GAMMA

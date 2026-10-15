@@ -2,7 +2,7 @@ using UnityEngine;
 
 namespace Glassmorphism
 {
-    /// Builds a normalized separable kernel only when the radius/material changes.
+    /// Builds a normalized separable kernel only when the radius changes.
     /// Adjacent source pixels share one bilinear fetch, without leaving sampling gaps.
     public sealed class GlassBlurKernel
     {
@@ -12,15 +12,30 @@ namespace Glassmorphism
         static readonly int PairCount = Shader.PropertyToID("_BlurPairCount");
         static readonly int Kernel = Shader.PropertyToID("_BlurKernel");
         readonly Vector4[] pairs = new Vector4[16];
-        Material previousMaterial;
         float previousRadius = float.NaN;
+        int pairCount;
+        float centerWeight;
 
         public void Apply(Material material, float radius)
         {
             radius = Mathf.Clamp(radius, 0, 8);
-            if (material == previousMaterial && radius == previousRadius) return;
-            previousMaterial = material;
-            previousRadius = radius;
+            if (radius != previousRadius)
+            {
+                previousRadius = radius;
+                Build(radius);
+            }
+
+            // Shader reloads can clear these nonserialized uniforms. Cache the
+            // calculation, but upload the complete kernel before every render.
+            material.SetFloat(Enabled, 1);
+            material.SetFloat(Size, radius);
+            material.SetFloat(Center, centerWeight);
+            material.SetInt(PairCount, pairCount);
+            material.SetVectorArray(Kernel, pairs);
+        }
+
+        void Build(float radius)
+        {
 
             int count = 0;
             float center = 1;
@@ -51,11 +66,8 @@ namespace Glassmorphism
                 for (int i = 0; i < count; i++) pairs[i].y /= total;
             }
 
-            material.SetFloat(Enabled, 1);
-            material.SetFloat(Size, radius);
-            material.SetFloat(Center, center);
-            material.SetInt(PairCount, count);
-            material.SetVectorArray(Kernel, pairs);
+            centerWeight = center;
+            pairCount = count;
         }
     }
 }
