@@ -1,15 +1,47 @@
-# Phone camera glass test (no AR)
+# Phone camera test using the shared renderer blur
 
-Open `Assets/Scenes/PhoneCameraGlass.unity`. It is the first enabled scene in Build Settings.
+Open `Assets/Scenes/PhoneCameraGlass.unity`. It is the first enabled build scene.
 
-1. Select Android or iOS in Build Profiles and choose your connected device.
-2. Build and Run. On iOS, complete the normal signing setup in Xcode.
-3. Allow camera access. The scene prefers the rear camera and requests 1280×720 at 30 FPS; actual device modes can differ.
+1. Build and Run on Android or iOS; complete the usual iOS signing setup.
+2. Allow camera access. The rear camera requests 1280×720 at 30 FPS; the actual
+   device mode can differ.
+3. Adjust blur quality on **UIBlurRendererFeature** in the URP renderer asset,
+   rather than on the phone source or individual panels.
 
-The scene has a fullscreen Screen Space Overlay canvas, a camera preview and a glass panel. `PhoneCameraBackdrop` displays the WebCamTexture and blurs it once for all linked panels. The glass's **Camera Backdrop** reference bypasses the URP camera capture feature, so AR Foundation is not needed. There are no CPU pixel readbacks or extra capture cameras. Aspect fill, camera rotation, vertical flip and optional front camera mirroring use the same UV mapping for preview and blur.
+## Architecture
 
-The Editor shows a labelled static preview image. Play mode opens a desktop webcam if available; a phone build uses the phone camera. The static image can remain visible while permission/startup is pending, or if the camera fails; the status message identifies this. **Start Camera On Play** must remain enabled for a live test (it is enabled in the saved scene).
+**Phone camera → camera background pass → opaque scene → shared blur → glass/UI**
 
-Adjust **Downsample**, **Blur Size** and **Blur Iterations** on **Live Camera Preview → Phone Camera Backdrop**. The default is 4×, radius 1, one iteration. All linked panels reuse the same two small blur buffers. The preview itself stays sharp. The source is the camera image, not other UI drawn above it.
+- **Main Camera / PhoneCameraBackground** manages camera permission, startup,
+  pause/resume, aspect fill, rotation and mirroring. It owns no blur textures.
+- **PhoneCameraBackgroundRendererFeature** draws the sharp feed directly into the
+  viewing camera's color buffer at BeforeRenderingOpaques. The camera must use
+  Solid Color clearing, rather than a skybox that would overwrite this background.
+- **UIBlurRendererFeature** blurs camera color once at BeforeRenderingTransparents.
+  It includes the real camera background and opaque virtual objects. It excludes
+  transparent UI so foreground labels/buttons remain sharp.
+- **Camera Canvas** is Screen Space Camera, assigned to Main Camera. The panel
+  uses **UI Blur → Shared Backdrop** with that camera. There is no phone-specific
+  reference on the panel.
 
-iOS Camera Usage Description is configured. Android permission is requested before opening the camera. No microphone access is requested. Camera hardware and permission prompts still need verification on the actual device; Editor checks exercised Overlay rendering, matching preview/blur alignment, and UV transforms for all four rotations.
+Both PC_Renderer and Mobile_Renderer have the background adapter and shared blur
+feature configured. The background adapter does nothing for cameras without an
+active PhoneCameraBackground source. The previous Overlay preview object is
+retained inactive in the test scene; it does not render or open another camera.
+
+The Editor uses a labelled static preview. Start Camera On Play remains enabled
+in the saved scene. Play mode can open a desktop webcam; a phone build opens its
+camera. A static preview/status message remains available while startup or
+permission is pending. iOS usage text is configured and Android requests camera
+permission. No microphone or AR Foundation dependency is required.
+
+## Moving to AR Foundation
+
+Remove/disable PhoneCameraBackground and use the normal AR camera setup:
+ARCameraManager, ARCameraBackground and the appropriate AR Foundation URP
+background renderer feature. Keep **UIBlurRendererFeature** and the panel setup.
+The optional phone background feature becomes inactive without a source.
+
+This mirrors the rendering responsibilities of AR; it does not install AR
+Foundation or provide tracking. Live device permission, camera orientation and
+GPU performance still need an Android/iOS build. VR is not included.

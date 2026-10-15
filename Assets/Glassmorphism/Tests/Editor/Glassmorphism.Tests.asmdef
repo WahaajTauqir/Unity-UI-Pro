@@ -1,0 +1,16 @@
+{
+    "name": "Glassmorphism.Tests",
+    "references": [
+        "Glassmorphism",
+        "Glassmorphism.WorldSpace",
+        "Unity.RenderPipelines.Core.Runtime",
+        "Unity.RenderPipelines.Universal.Runtime",
+        "UnityEngine.UI"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "optionalUnityReferences": [
+        "TestAssemblies"
+    ]
+}

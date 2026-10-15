@@ -4,9 +4,6 @@ Shader "Glassmorphism/WorldSpaceGlass"
     {
         [PerRendererData] _MainTex ("Backdrop", 2D) = "white" {}
         _OverlayTex ("Panel Image", 2D) = "white" {}
-        [HideInInspector] _DirectBackdrop ("Direct Camera Backdrop", 2D) = "black" {}
-        [HideInInspector] _UseDirectBackdrop ("Use Direct Backdrop", Float) = 0
-        [HideInInspector] _DirectBackdropReady ("Direct Backdrop Ready", Float) = 0
         [HideInInspector] _PanelRect ("Panel Rect", Vector) = (0,0,1,1)
         [HideInInspector] _PanelCameraID ("Viewing Camera", Float) = 0
         [HideInInspector] _OverlayRect ("Image Rect", Vector) = (0,0,1,1)
@@ -49,6 +46,8 @@ Shader "Glassmorphism/WorldSpaceGlass"
         Pass
         {
             CGPROGRAM
+            #pragma target 3.5
+            #pragma multi_compile_instancing
             #pragma vertex Vert
             #pragma fragment Frag
             #pragma multi_compile_local _ UNITY_UI_CLIP_RECT
@@ -57,8 +56,9 @@ Shader "Glassmorphism/WorldSpaceGlass"
             #include "UnityUI.cginc"
             #include "../Shaders/GlassImageSlicing.hlsl"
 
-            sampler2D _WorldGlassBackdrop, _OverlayTex, _DirectBackdrop;
-            float _UseDirectBackdrop, _DirectBackdropReady;
+            // Array texture for SPI/multiview, regular 2D for mono/multipass.
+            UNITY_DECLARE_SCREENSPACE_TEXTURE(_WorldGlassBackdrop);
+            sampler2D _OverlayTex;
             float _WorldGlassCameraID, _PanelCameraID;
             float4 _PanelRect, _OverlayRect, _OverlayUV, _ClipRect;
             fixed4 _OverlayColor, _TintColor, _BorderColor, _TextureSampleAdd;
@@ -84,6 +84,7 @@ Shader "Glassmorphism/WorldSpaceGlass"
             {
                 Varyings o;
                 UNITY_SETUP_INSTANCE_ID(v);
+                UNITY_INITIALIZE_OUTPUT(Varyings, o);
                 UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(o);
                 o.position = UnityObjectToClipPos(v.vertex);
                 o.color = v.color;
@@ -94,15 +95,13 @@ Shader "Glassmorphism/WorldSpaceGlass"
             }
             fixed4 Frag(Varyings i) : SV_Target
             {
+                UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(i);
                 // Perspective-correct screen projection keeps the backdrop aligned
                 // when the world canvas rotates, moves, or crosses the viewport.
-                if (_UseDirectBackdrop > 0.5) clip(_DirectBackdropReady - 0.5);
-                else clip(_PanelCameraID == 0 || _WorldGlassCameraID != _PanelCameraID ? -1 : 1);
+                clip(_PanelCameraID == 0 || _WorldGlassCameraID != _PanelCameraID ? -1 : 1);
                 float2 localUV = i.panelUV;
                 float2 screenUV = i.screenPosition.xy / i.screenPosition.w;
-                fixed4 color;
-                if (_UseDirectBackdrop > 0.5) color = fixed4(tex2D(_DirectBackdrop, screenUV).rgb, 1);
-                else color = fixed4(tex2D(_WorldGlassBackdrop, screenUV).rgb, 1);
+                fixed4 color = fixed4(UNITY_SAMPLE_SCREENSPACE_TEXTURE(_WorldGlassBackdrop, screenUV).rgb, 1);
                 color.rgb = lerp(color.rgb, _TintColor.rgb, _TintColor.a);
                 if (_OverlayEnabled > 0.5)
                 {

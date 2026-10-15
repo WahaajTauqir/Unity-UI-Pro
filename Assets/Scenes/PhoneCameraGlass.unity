@@ -132,6 +132,8 @@ GameObject:
   - component: {fileID: 117661079}
   - component: {fileID: 117661078}
   - component: {fileID: 117661077}
+  - component: {fileID: 117661081}
+  - component: {fileID: 117661082}
   m_Layer: 0
   m_Name: Glass Panel
   m_TagString: Untagged
@@ -163,7 +165,7 @@ RectTransform:
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &117661077
 MonoBehaviour:
-  m_ObjectHideFlags: 0
+  m_ObjectHideFlags: 2
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
@@ -172,14 +174,13 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 7094aa5831cf54954bd3585bafbebe61, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Glassmorphism.WorldSpace::Glassmorphism.WorldSpaceGlass
+  m_EditorClassIdentifier: Glassmorphism.WorldSpace::Glassmorphism.UIBlurSharedBackdrop
   sourceCamera: {fileID: 844385453}
-  cameraBackdrop: {fileID: 2078158941}
-  panelImage: {fileID: 0}
-  imageType: 0
+  panelImage: {fileID: 21300000, guid: d536e930e5bf9490a88dda65ddb1b814, type: 3}
+  imageType: 1
   pixelsPerUnitMultiplier: 1
   imageColor: {r: 1, g: 1, b: 1, a: 1}
-  preserveImageAspect: 1
+  preserveImageAspect: 0
   maskWithPanelImage: 1
   tint: {r: 0, g: 0, b: 0, a: 0}
   cornerRadius: 54
@@ -234,6 +235,71 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 117661075}
   m_CullTransparentMesh: 1
+--- !u!114 &117661081
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 117661075}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 93087c40533fc4c57ae332498ef662c0, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Glassmorphism.WorldSpace::Glassmorphism.UIBlur
+  source: 1
+  sourceCamera: {fileID: 844385453}
+  sourceCanvas: {fileID: 0}
+  downsample: 2
+  blurSize: 1
+  blurIterations: 1
+  hdrCapture: 0
+  panelImage: {fileID: 21300000, guid: d536e930e5bf9490a88dda65ddb1b814, type: 3}
+  imageType: 1
+  pixelsPerUnitMultiplier: 1
+  imageColor: {r: 1, g: 1, b: 1, a: 1}
+  preserveImageAspect: 0
+  maskWithPanelImage: 1
+  tint: {r: 0, g: 0, b: 0, a: 0}
+  cornerRadius: 54
+  borderWidth: 1.5
+  borderColor: {r: 1, g: 1, b: 1, a: 0.35}
+  captureBlurShader: {fileID: 4800000, guid: c6635031514dda648a1eddedff8bbda8, type: 3}
+  capturePanelShader: {fileID: 4800000, guid: 8da52fb3e4274c0fa739b68c8aa427e0, type: 3}
+  backdropPanelShader: {fileID: 4800000, guid: ef455468bbf1f429fa57a5276e5936ba, type: 3}
+  captureModule: {fileID: 0}
+  backdropModule: {fileID: 117661077}
+  initialized: 1
+--- !u!114 &117661082
+MonoBehaviour:
+  m_ObjectHideFlags: 2
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 117661075}
+  m_Enabled: 0
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c339df1cb9dae49469bc6a75a8f9f69d, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Glassmorphism.WorldSpace::Glassmorphism.UIBlurScreenCapture
+  sourceCamera: {fileID: 844385453}
+  sourceCanvas: {fileID: 785131032}
+  downsample: 2
+  blurSize: 1
+  blurIterations: 1
+  hdrCapture: 0
+  panelImage: {fileID: 21300000, guid: d536e930e5bf9490a88dda65ddb1b814, type: 3}
+  imageType: 1
+  pixelsPerUnitMultiplier: 1
+  imageColor: {r: 1, g: 1, b: 1, a: 1}
+  preserveImageAspect: 0
+  maskWithPanelImage: 1
+  tint: {r: 0, g: 0, b: 0, a: 0}
+  cornerRadius: 54
+  borderWidth: 1.5
+  borderColor: {r: 1, g: 1, b: 1, a: 0.35}
+  blurShader: {fileID: 4800000, guid: c6635031514dda648a1eddedff8bbda8, type: 3}
+  panelShader: {fileID: 4800000, guid: 8da52fb3e4274c0fa739b68c8aa427e0, type: 3}
 --- !u!1 &189605527
 GameObject:
   m_ObjectHideFlags: 0
@@ -500,7 +566,7 @@ GameObject:
   - component: {fileID: 785131031}
   - component: {fileID: 785131030}
   m_Layer: 0
-  m_Name: Camera Overlay Canvas
+  m_Name: Camera Canvas
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -555,9 +621,9 @@ Canvas:
   m_GameObject: {fileID: 785131029}
   m_Enabled: 1
   serializedVersion: 3
-  m_RenderMode: 0
-  m_Camera: {fileID: 0}
-  m_PlaneDistance: 100
+  m_RenderMode: 1
+  m_Camera: {fileID: 844385453}
+  m_PlaneDistance: 1
   m_PixelPerfect: 0
   m_ReceivesEvents: 1
   m_OverrideSorting: 0
@@ -581,7 +647,6 @@ RectTransform:
   m_LocalScale: {x: 0, y: 0, z: 0}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - {fileID: 2078158944}
   - {fileID: 424007727}
   - {fileID: 117661076}
   - {fileID: 655132248}
@@ -602,6 +667,7 @@ GameObject:
   m_Component:
   - component: {fileID: 799437584}
   - component: {fileID: 799437583}
+  - component: {fileID: 799437585}
   m_Layer: 0
   m_Name: Directional Light
   m_TagString: Untagged
@@ -689,6 +755,35 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &799437585
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 799437582}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 474bcb49853aa07438625e644c072ee6, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Unity.RenderPipelines.Universal.Runtime::UnityEngine.Rendering.Universal.UniversalAdditionalLightData
+  m_UsePipelineSettings: 1
+  m_AdditionalLightsShadowResolutionTier: 2
+  m_CustomShadowLayers: 0
+  m_LightCookieSize: {x: 1, y: 1}
+  m_LightCookieOffset: {x: 0, y: 0}
+  m_SoftShadowQuality: 0
+  m_RenderingLayersMask:
+    serializedVersion: 0
+    m_Bits: 1
+  m_ShadowRenderingLayersMask:
+    serializedVersion: 0
+    m_Bits: 1
+  m_Version: 4
+  m_LightLayerMask: 1
+  m_ShadowLayerMask: 1
+  m_RenderingLayers: 1
+  m_ShadowRenderingLayers: 1
 --- !u!1 &844385452
 GameObject:
   m_ObjectHideFlags: 0
@@ -701,6 +796,7 @@ GameObject:
   - component: {fileID: 844385453}
   - component: {fileID: 844385455}
   - component: {fileID: 844385454}
+  - component: {fileID: 844385457}
   m_Layer: 0
   m_Name: Main Camera
   m_TagString: MainCamera
@@ -747,7 +843,7 @@ Camera:
   m_Depth: 0
   m_CullingMask:
     serializedVersion: 2
-    m_Bits: 0
+    m_Bits: 4294967295
   m_RenderingPath: -1
   m_TargetTexture: {fileID: 0}
   m_TargetDisplay: 0
@@ -826,6 +922,28 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &844385457
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 844385452}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 881113243662144fbb873eabaacd17b4, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Glassmorphism.WorldSpace::Glassmorphism.PhoneCameraBackground
+  startCameraOnPlay: 1
+  preferFrontCamera: 0
+  mirrorFrontCamera: 1
+  requestedWidth: 1280
+  requestedHeight: 720
+  requestedFPS: 30
+  targetCamera: {fileID: 844385453}
+  previewTexture: {fileID: 2800000, guid: 1db640704cc1448a78ef0a047d938c3b, type: 3}
+  statusLabel: {fileID: 655132250}
+  cameraShader: {fileID: 4800000, guid: 643bd9cf13c7c4b9d8622c232c98c192, type: 3}
 --- !u!1 &1157514597
 GameObject:
   m_ObjectHideFlags: 0
@@ -984,104 +1102,6 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1241961699}
   m_CullTransparentMesh: 1
---- !u!1 &2078158940
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 2078158944}
-  - component: {fileID: 2078158943}
-  - component: {fileID: 2078158942}
-  - component: {fileID: 2078158941}
-  m_Layer: 0
-  m_Name: Live Camera Preview
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!114 &2078158941
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2078158940}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 881113243662144fbb873eabaacd17b4, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Glassmorphism.WorldSpace::Glassmorphism.PhoneCameraBackdrop
-  startCameraOnPlay: 1
-  preferFrontCamera: 0
-  mirrorFrontCamera: 1
-  requestedWidth: 1280
-  requestedHeight: 720
-  requestedFPS: 30
-  downsample: 4
-  blurSize: 1
-  blurIterations: 1
-  previewTexture: {fileID: 2800000, guid: 1db640704cc1448a78ef0a047d938c3b, type: 3}
-  statusLabel: {fileID: 655132250}
-  cameraShader: {fileID: 4800000, guid: 643bd9cf13c7c4b9d8622c232c98c192, type: 3}
-  blurShader: {fileID: 4800000, guid: c6635031514dda648a1eddedff8bbda8, type: 3}
---- !u!114 &2078158942
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2078158940}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 1344c3c82d62a2a41a3576d8abb8e3ea, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.RawImage
-  m_Material: {fileID: 0}
-  m_Color: {r: 1, g: 1, b: 1, a: 1}
-  m_RaycastTarget: 0
-  m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
-  m_Maskable: 1
-  m_OnCullStateChanged:
-    m_PersistentCalls:
-      m_Calls: []
-  m_Texture: {fileID: 0}
-  m_UVRect:
-    serializedVersion: 2
-    x: 0
-    y: 0
-    width: 1
-    height: 1
---- !u!222 &2078158943
-CanvasRenderer:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2078158940}
-  m_CullTransparentMesh: 1
---- !u!224 &2078158944
-RectTransform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2078158940}
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 785131033}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0, y: 0}
-  m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 0, y: 0}
-  m_Pivot: {x: 0.5, y: 0.5}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

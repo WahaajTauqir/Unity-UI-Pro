@@ -1,0 +1,11 @@
+{
+    "name": "Glassmorphism.Editor",
+    "references": [
+        "Glassmorphism",
+        "Glassmorphism.WorldSpace",
+        "UnityEngine.UI",
+        "Unity.RenderPipelines.Core.Runtime",
+        "Unity.RenderPipelines.Universal.Runtime"
+    ],
+    "includePlatforms": ["Editor"]
+}

@@ -7,71 +7,76 @@ using UnityEngine.Android;
 
 namespace Glassmorphism
 {
-    /// Live phone camera preview and one shared GPU blur for overlay glass.
-    /// No AR packages, camera readbacks, or secondary render camera are required.
-    [ExecuteAlways, DisallowMultipleComponent, RequireComponent(typeof(RawImage))]
-    [AddComponentMenu("Glassmorphism/Phone Camera Backdrop")]
-    public sealed class PhoneCameraBackdrop : MonoBehaviour
+    /// Optional non-AR camera source. Draws a sharp background; owns no blur buffers.
+    /// PhoneCameraBackgroundRendererFeature draws it before opaque scene rendering.
+    [ExecuteAlways, DisallowMultipleComponent]
+    [AddComponentMenu("Glassmorphism/Phone Camera Background")]
+    [UnityEngine.Scripting.APIUpdating.MovedFrom(true, "Glassmorphism", "Glassmorphism.WorldSpace", "PhoneCameraBackdrop")]
+    public sealed class PhoneCameraBackground : MonoBehaviour
     {
-        [Tooltip("Disable only for static preview/testing without opening a camera.")]
         public bool startCameraOnPlay = true;
         public bool preferFrontCamera;
         public bool mirrorFrontCamera = true;
         [Min(16)] public int requestedWidth = 1280;
         [Min(16)] public int requestedHeight = 720;
         [Range(15, 60)] public int requestedFPS = 30;
-        [Header("Shared Blur")]
-        [Range(1, 8)] public int downsample = 4;
-        [Range(0, 8)] public float blurSize = 1;
-        [Range(1, 6)] public int blurIterations = 1;
-        [Header("Preview")]
-        [Tooltip("Optional static preview while editing or waiting for the camera. It is not a live camera image.")]
+        [Tooltip("Leave empty when this component is attached to the viewing camera.")]
+        public Camera targetCamera;
+        [Tooltip("Static background while editing or waiting for the camera.")]
         public Texture previewTexture;
         public Text statusLabel;
         public Shader cameraShader;
-        public Shader blurShader;
 
-        public Texture BlurredTexture => blurA;
-        public bool IsReady => isActiveAndEnabled && blurA != null && blurA.IsCreated() && lastInput != null;
-
-        RawImage preview;
+        static readonly System.Collections.Generic.HashSet<PhoneCameraBackground> Sources =
+            new System.Collections.Generic.HashSet<PhoneCameraBackground>();
         WebCamTexture cameraTexture;
-        bool frontCamera, paused;
+        Camera attachedCamera;
+        bool frontCamera, paused, mappingValid;
         float cameraStartedAt;
-        Material cameraMaterial, blurMaterial, previousMaterial;
-        Texture previousTexture;
-        RenderTexture blurA, blurB;
-        readonly GlassBlurKernel kernel = new GlassBlurKernel();
+        Material cameraMaterial;
         Texture lastInput;
-        int lastWidth, lastHeight, lastRotation, lastDownsample, lastIterations;
+        int lastWidth, lastHeight, lastSourceWidth, lastSourceHeight, lastRotation;
         bool lastVerticalMirror, lastFrontMirror;
-        float lastBlurSize = -1;
         string status;
+        static readonly int CameraTexture = Shader.PropertyToID("_CameraTex");
         static readonly int UV0 = Shader.PropertyToID("_CameraUV0");
         static readonly int UV1 = Shader.PropertyToID("_CameraUV1");
-        static readonly int PixelSize = Shader.PropertyToID("_OutputPixelSize");
 
-        void Reset() => ResolveShaders();
+        internal static PhoneCameraBackground ForCamera(Camera camera)
+        {
+            foreach (var source in Sources)
+                if (source != null && source.isActiveAndEnabled
+                    && (source.targetCamera != null ? source.targetCamera
+                        : source.attachedCamera != null ? source.attachedCamera : Camera.main) == camera)
+                    return source;
+            return null;
+        }
+
+        void InvalidateMapping() => mappingValid = false;
+        void Reset() => ResolveShader();
         void OnValidate()
         {
-            ResolveShaders();
+            InvalidateMapping();
+            ResolveShader();
 #if UNITY_EDITOR
             UnityEditor.EditorApplication.QueuePlayerLoopUpdate();
 #endif
         }
 
-        void ResolveShaders()
+        void ResolveShader()
         {
             if (cameraShader == null) cameraShader = Shader.Find("Glassmorphism/PhoneCameraFeed");
-            if (blurShader == null) blurShader = Shader.Find("Glassmorphism/SeparableBlur");
         }
 
         void OnEnable()
         {
-            preview = GetComponent<RawImage>();
-            previousMaterial = preview.material;
-            previousTexture = preview.texture;
-            ResolveShaders();
+            attachedCamera = GetComponent<Camera>();
+            Sources.Add(this);
+#if UNITY_EDITOR
+            UnityEditor.EditorApplication.projectChanged += InvalidateMapping;
+#endif
+            InvalidateMapping();
+            ResolveShader();
             SetStatus(Application.isPlaying && startCameraOnPlay ? "Starting camera…" : "Preview image · Camera starts in Play mode");
             if (Application.isPlaying && startCameraOnPlay) StartCoroutine(StartCamera());
         }
@@ -131,56 +136,47 @@ namespace Glassmorphism
             }
         }
 
-        void LateUpdate() => RefreshPreview();
-
-        public void RefreshPreview()
+        // Called by the background pass, using this camera's actual render dimensions.
+        internal Material PrepareBackground(Camera camera, int width, int height)
         {
-            if (preview == null) return;
             bool live = Application.isPlaying && !paused && cameraTexture != null
                 && cameraTexture.isPlaying && cameraTexture.width > 16;
             Texture input = live ? cameraTexture : previewTexture;
-            if (input == null) return;
+            if (input == null) return null;
+            ResolveShader();
+            if (cameraShader == null) { SetStatus("Camera background shader is missing."); return null; }
+            if (cameraMaterial != null && cameraMaterial.shader != cameraShader)
+            {
+                DestroyResource(cameraMaterial);
+                cameraMaterial = null;
+            }
+            if (cameraMaterial == null)
+            {
+                cameraMaterial = new Material(cameraShader) { hideFlags = HideFlags.HideAndDontSave };
+                mappingValid = false;
+            }
             int rotation = live ? cameraTexture.videoRotationAngle : 0;
             bool verticalMirror = live && cameraTexture.videoVerticallyMirrored;
             bool horizontalMirror = live && frontCamera && mirrorFrontCamera;
-            Rect viewport = preview.canvas != null ? preview.canvas.pixelRect : new Rect(0, 0, Screen.width, Screen.height);
-            int width = Mathf.Max(2, Mathf.RoundToInt(viewport.width));
-            int height = Mathf.Max(2, Mathf.RoundToInt(viewport.height));
-            int reduction = Mathf.Clamp(downsample, 1, 8);
-            bool changed = input != lastInput || width != lastWidth || height != lastHeight
-                || rotation != lastRotation || verticalMirror != lastVerticalMirror || horizontalMirror != lastFrontMirror
-                || reduction != lastDownsample || blurSize != lastBlurSize || blurIterations != lastIterations
-                || blurA == null || blurB == null || !blurA.IsCreated() || !blurB.IsCreated()
-                || blurMaterial == null || blurMaterial.GetFloat("_BlurCenterWeight") <= 0;
-            if (!changed && (!live || !cameraTexture.didUpdateThisFrame)) return;
-            if (cameraMaterial == null || blurMaterial == null)
+            bool changed = !mappingValid || input != lastInput
+                || input.width != lastSourceWidth || input.height != lastSourceHeight
+                || width != lastWidth || height != lastHeight || rotation != lastRotation
+                || verticalMirror != lastVerticalMirror || horizontalMirror != lastFrontMirror;
+            if (changed)
             {
-                ResolveShaders();
-                if (cameraShader == null || blurShader == null) { SetStatus("Camera preview shaders are missing."); return; }
-                if (cameraMaterial == null) cameraMaterial = new Material(cameraShader) { hideFlags = HideFlags.HideAndDontSave };
-                if (blurMaterial == null) blurMaterial = new Material(blurShader) { hideFlags = HideFlags.HideAndDontSave };
+                GetCameraUV(input.width, input.height, width, height, rotation, verticalMirror, horizontalMirror,
+                    out Vector4 row0, out Vector4 row1);
+                cameraMaterial.SetTexture(CameraTexture, input);
+                cameraMaterial.SetVector(UV0, row0);
+                cameraMaterial.SetVector(UV1, row1);
+                lastInput = input;
+                lastSourceWidth = input.width; lastSourceHeight = input.height;
+                lastWidth = width; lastHeight = height; lastRotation = rotation;
+                lastVerticalMirror = verticalMirror; lastFrontMirror = horizontalMirror;
+                mappingValid = true;
             }
-
-            GetCameraUV(input.width, input.height, width, height, rotation, verticalMirror, horizontalMirror,
-                out Vector4 row0, out Vector4 row1);
-            cameraMaterial.SetVector(UV0, row0);
-            cameraMaterial.SetVector(UV1, row1);
-            preview.texture = input;
-            preview.material = cameraMaterial;
-            int blurWidth = Mathf.Max(2, width / reduction), blurHeight = Mathf.Max(2, height / reduction);
-            EnsureTextures(blurWidth, blurHeight);
-            cameraMaterial.SetVector(PixelSize, new Vector4(1f / blurWidth, 1f / blurHeight, 0, 0));
-            Graphics.Blit(input, blurA, cameraMaterial, 1);
-            kernel.Apply(blurMaterial, blurSize);
-            for (int i = 0; i < Mathf.Clamp(blurIterations, 1, 6); i++)
-            {
-                Graphics.Blit(blurA, blurB, blurMaterial, 0);
-                Graphics.Blit(blurB, blurA, blurMaterial, 1);
-            }
-            lastInput = input; lastWidth = width; lastHeight = height;
-            lastRotation = rotation; lastVerticalMirror = verticalMirror; lastFrontMirror = horizontalMirror;
-            lastDownsample = reduction; lastBlurSize = blurSize; lastIterations = blurIterations;
             if (live) SetStatus("");
+            return cameraMaterial;
         }
 
         /// Maps screen UVs to the raw camera, using aspect-fill without stretching.
@@ -203,27 +199,6 @@ namespace Glassmorphism
             row1 = new Vector4(x.y, y.y, origin.y, 0);
         }
 
-        void EnsureTextures(int width, int height)
-        {
-            if (blurA != null && blurB != null && blurA.width == width && blurA.height == height
-                && blurA.IsCreated() && blurB.IsCreated()) return;
-            ReleaseTextures();
-            blurA = MakeTexture(width, height, "PhoneCameraBlur_A");
-            blurB = MakeTexture(width, height, "PhoneCameraBlur_B");
-        }
-
-        static RenderTexture MakeTexture(int width, int height, string name)
-        {
-            var texture = new RenderTexture(width, height, 0, RenderTextureFormat.ARGB32)
-            {
-                name = name, hideFlags = HideFlags.HideAndDontSave,
-                filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp,
-                useMipMap = false, autoGenerateMips = false
-            };
-            texture.Create();
-            return texture;
-        }
-
         void SetStatus(string value)
         {
             if (status == value) return;
@@ -243,23 +218,15 @@ namespace Glassmorphism
 
         void OnDisable()
         {
+#if UNITY_EDITOR
+            UnityEditor.EditorApplication.projectChanged -= InvalidateMapping;
+#endif
             StopAllCoroutines();
             if (cameraTexture != null) { cameraTexture.Stop(); DestroyResource(cameraTexture); cameraTexture = null; }
-            if (preview != null && preview.material == cameraMaterial)
-            {
-                preview.material = previousMaterial;
-                preview.texture = previousTexture;
-            }
-            ReleaseTextures();
+            Sources.Remove(this);
             DestroyResource(cameraMaterial); cameraMaterial = null;
-            DestroyResource(blurMaterial); blurMaterial = null;
             lastInput = null;
-        }
-
-        void ReleaseTextures()
-        {
-            if (blurA != null) { blurA.Release(); DestroyResource(blurA); blurA = null; }
-            if (blurB != null) { blurB.Release(); DestroyResource(blurB); blurB = null; }
+            mappingValid = false;
         }
 
         static void DestroyResource(Object resource)

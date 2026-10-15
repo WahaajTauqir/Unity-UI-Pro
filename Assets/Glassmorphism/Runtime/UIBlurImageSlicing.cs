@@ -2,18 +2,18 @@ using UnityEngine;
 
 namespace Glassmorphism
 {
-    public enum GlassImageType { Simple, Sliced }
+    public enum UIBlurImageType { Simple, Sliced }
 
-    public static class GlassImageSlicing
+    public static class UIBlurImageSlicing
     {
         static readonly int Enabled = Shader.PropertyToID("_ImageSliced");
         static readonly int Destination = Shader.PropertyToID("_SliceBorder");
         static readonly int Source = Shader.PropertyToID("_SliceUVBorder");
 
-        public static bool IsSliced(Sprite sprite, GlassImageType type)
-            => type == GlassImageType.Sliced && sprite != null && sprite.border.sqrMagnitude > 0;
+        public static bool IsSliced(Sprite sprite, UIBlurImageType type)
+            => type == UIBlurImageType.Sliced && sprite != null && sprite.border.sqrMagnitude > 0;
 
-        public static void Apply(Material material, Sprite sprite, GlassImageType type,
+        public static void Apply(Material material, Sprite sprite, UIBlurImageType type,
             Rect rect, Canvas canvas, float multiplier)
         {
             bool sliced = IsSliced(sprite, type);

@@ -5,20 +5,20 @@ using UnityEngine.UI;
 namespace Glassmorphism
 {
     /// World space and Screen Space - Camera uGUI glass, including handheld AR.
-    /// WorldGlassRendererFeature supplies one shared backdrop per viewing camera.
+    /// UIBlurRendererFeature supplies one shared backdrop per viewing camera.
     [ExecuteAlways, DisallowMultipleComponent]
     [RequireComponent(typeof(RawImage), typeof(Mask))]
-    [AddComponentMenu("Glassmorphism/World Space Glass")]
-    public sealed class WorldSpaceGlass : MonoBehaviour
+    [AddComponentMenu("")]
+    // INTERNAL MODULE 2: shared camera backdrop. UIBlur is the user-facing component.
+    // Renderer registration/projection stay separate from screen capture, including XR stereo.
+    [UnityEngine.Scripting.APIUpdating.MovedFrom(true, "Glassmorphism", "Glassmorphism.WorldSpace", "WorldSpaceGlass")]
+    public sealed class UIBlurSharedBackdrop : MonoBehaviour
     {
         [Tooltip("The camera viewing this canvas. Assign the AR Camera in AR. Falls back to the canvas camera, then Camera.main.")]
         public Camera sourceCamera;
-        [Tooltip("Optional live phone camera backdrop. Assign this for Screen Space Overlay camera-preview UI.")]
-        public PhoneCameraBackdrop cameraBackdrop;
-
         [Header("Panel Appearance")]
         public Sprite panelImage;
-        public GlassImageType imageType = GlassImageType.Simple;
+        public UIBlurImageType imageType = UIBlurImageType.Simple;
         [Tooltip("Sliced images: higher values make the sprite borders thinner. Requires borders in Sprite Editor.")]
         [Min(0.01f)] public float pixelsPerUnitMultiplier = 1f;
         public Color imageColor = Color.white;
@@ -35,7 +35,7 @@ namespace Glassmorphism
         [Tooltip("Keep this reference assigned so the world space shader is included in builds.")]
         public Shader panelShader;
 
-        static readonly HashSet<WorldSpaceGlass> Panels = new HashSet<WorldSpaceGlass>();
+        static readonly HashSet<UIBlurSharedBackdrop> Panels = new HashSet<UIBlurSharedBackdrop>();
         static readonly int PanelRect = Shader.PropertyToID("_PanelRect");
         static readonly int PanelCamera = Shader.PropertyToID("_PanelCameraID");
         static readonly int OverlayTex = Shader.PropertyToID("_OverlayTex");
@@ -48,9 +48,6 @@ namespace Glassmorphism
         static readonly int CornerRadius = Shader.PropertyToID("_CornerRadius");
         static readonly int BorderWidth = Shader.PropertyToID("_BorderWidth");
         static readonly int BorderColor = Shader.PropertyToID("_BorderColor");
-        static readonly int DirectBackdrop = Shader.PropertyToID("_DirectBackdrop");
-        static readonly int UseDirectBackdrop = Shader.PropertyToID("_UseDirectBackdrop");
-        static readonly int DirectBackdropReady = Shader.PropertyToID("_DirectBackdropReady");
 
         RawImage image;
         RectTransform rectTransform;
@@ -60,14 +57,54 @@ namespace Glassmorphism
         Texture previousTexture;
         Rect previousUV;
 
+        // Texture contents change without changing their bindings. Upload appearance only
+        // when its inputs or the stencil materials change.
+        bool appearanceValid;
+        AppearanceState appearance;
+        Material lastStencil, lastPop;
+        Vector4 cachedImageRect, cachedUV;
+
+        struct AppearanceState
+        {
+            public Sprite sprite;
+            public Texture texture;
+            public UIBlurImageType type;
+            public float multiplier;
+            public float ppu;
+            public Color color;
+            public Color tint;
+            public Color border;
+            public bool aspect;
+            public bool mask;
+            public float radius;
+            public float width;
+            public Rect rect;
+            public float camera;
+            public bool Matches(AppearanceState other) =>
+                sprite == other.sprite
+                && texture == other.texture
+                && type.Equals(other.type)
+                && multiplier.Equals(other.multiplier)
+                && ppu.Equals(other.ppu)
+                && color.Equals(other.color)
+                && tint.Equals(other.tint)
+                && border.Equals(other.border)
+                && aspect.Equals(other.aspect)
+                && mask.Equals(other.mask)
+                && radius.Equals(other.radius)
+                && width.Equals(other.width)
+                && rect.Equals(other.rect)
+                && camera.Equals(other.camera);
+        }
+
         internal Camera ViewingCamera => sourceCamera != null ? sourceCamera
             : canvas != null && canvas.worldCamera != null ? canvas.worldCamera : Camera.main;
 
         internal static bool HasPanelsFor(Camera camera)
         {
-            foreach (WorldSpaceGlass panel in Panels)
+            foreach (UIBlurSharedBackdrop panel in Panels)
             {
-                if (panel != null && panel.cameraBackdrop == null && panel.isActiveAndEnabled && panel.canvas != null
+                if (panel != null && panel.isActiveAndEnabled && panel.canvas != null
                     && panel.canvas.isActiveAndEnabled && panel.canvas.renderMode != RenderMode.ScreenSpaceOverlay
                     && panel.ViewingCamera == camera)
                     return true;
@@ -81,8 +118,11 @@ namespace Glassmorphism
             GetComponent<RawImage>().raycastTarget = false;
         }
 
+        void InvalidateAppearance() => appearanceValid = false;
+
         void OnValidate()
         {
+            InvalidateAppearance();
             if (panelShader == null) panelShader = Shader.Find("Glassmorphism/WorldSpaceGlass");
 #if UNITY_EDITOR
             UnityEditor.EditorApplication.QueuePlayerLoopUpdate();
@@ -98,6 +138,10 @@ namespace Glassmorphism
             previousTexture = image.texture;
             previousUV = image.uvRect;
             GetComponent<Mask>().showMaskGraphic = true;
+            InvalidateAppearance();
+#if UNITY_EDITOR
+            UnityEditor.EditorApplication.projectChanged += InvalidateAppearance;
+#endif
             Panels.Add(this);
             Canvas.willRenderCanvases += ApplyAppearance;
             ApplyAppearance();
@@ -107,6 +151,9 @@ namespace Glassmorphism
 
         void OnDisable()
         {
+#if UNITY_EDITOR
+            UnityEditor.EditorApplication.projectChanged -= InvalidateAppearance;
+#endif
             Panels.Remove(this);
             Canvas.willRenderCanvases -= ApplyAppearance;
             if (image != null && image.material == material)
@@ -124,6 +171,7 @@ namespace Glassmorphism
             if (Application.isPlaying) Destroy(material);
             else DestroyImmediate(material);
             material = null;
+            InvalidateAppearance();
         }
 
         void ApplyAppearance()
@@ -140,45 +188,71 @@ namespace Glassmorphism
             if (image.texture != Texture2D.whiteTexture) image.texture = Texture2D.whiteTexture;
             if (image.uvRect != new Rect(0, 0, 1, 1)) image.uvRect = new Rect(0, 0, 1, 1);
 
+            canvas = image.canvas;
             Rect rect = rectTransform.rect;
-            Vector4 imageRect = new Vector4(0, 0, 1, 1);
-            if (panelImage != null && !GlassImageSlicing.IsSliced(panelImage, imageType)
-                && preserveImageAspect && rect.width > 0 && rect.height > 0)
-            {
-                float imageAspect = panelImage.rect.width / Mathf.Max(1, panelImage.rect.height);
-                float panelAspect = rect.width / rect.height;
-                if (imageAspect > panelAspect)
-                {
-                    imageRect.w = panelAspect / imageAspect;
-                    imageRect.y = (1 - imageRect.w) * 0.5f;
-                }
-                else
-                {
-                    imageRect.z = imageAspect / panelAspect;
-                    imageRect.x = (1 - imageRect.z) * 0.5f;
-                }
-            }
-            Vector4 uv = panelImage != null ? UnityEngine.Sprites.DataUtility.GetOuterUV(panelImage)
-                : new Vector4(0, 0, 1, 1);
             Camera camera = ViewingCamera;
             float cameraId = camera != null ? camera.GetInstanceID() : 0;
-            ApplyUniforms(material, rect, imageRect, uv, cameraId);
-            Material stencilMaterial = image.materialForRendering;
-            if (stencilMaterial != material) ApplyUniforms(stencilMaterial, rect, imageRect, uv, cameraId);
-            if (image.canvasRenderer.popMaterialCount > 0)
+            var state = new AppearanceState
             {
-                Material pop = image.canvasRenderer.GetPopMaterial(0);
-                if (pop != null) ApplyUniforms(pop, rect, imageRect, uv, cameraId);
+                sprite = panelImage,
+                texture = panelImage != null ? panelImage.texture : null,
+                type = imageType,
+                multiplier = pixelsPerUnitMultiplier,
+                ppu = canvas != null ? canvas.referencePixelsPerUnit : 100,
+                color = imageColor,
+                tint = tint,
+                border = borderColor,
+                aspect = preserveImageAspect,
+                mask = maskWithPanelImage,
+                radius = cornerRadius,
+                width = borderWidth,
+                rect = rect,
+                camera = cameraId,
+            };
+            bool changed = !appearanceValid || !appearance.Matches(state);
+            Material stencilMaterial = image.materialForRendering;
+            Material pop = image.canvasRenderer.popMaterialCount > 0
+                ? image.canvasRenderer.GetPopMaterial(0) : null;
+            if (!changed && stencilMaterial == lastStencil && pop == lastPop) return;
+            if (changed)
+            {
+
+                Vector4 imageRect = new Vector4(0, 0, 1, 1);
+                if (panelImage != null && !UIBlurImageSlicing.IsSliced(panelImage, imageType)
+                    && preserveImageAspect && rect.width > 0 && rect.height > 0)
+                {
+                    float imageAspect = panelImage.rect.width / Mathf.Max(1, panelImage.rect.height);
+                    float panelAspect = rect.width / rect.height;
+                    if (imageAspect > panelAspect)
+                    {
+                        imageRect.w = panelAspect / imageAspect;
+                        imageRect.y = (1 - imageRect.w) * 0.5f;
+                    }
+                    else
+                    {
+                        imageRect.z = imageAspect / panelAspect;
+                        imageRect.x = (1 - imageRect.z) * 0.5f;
+                    }
+                }
+                Vector4 uv = panelImage != null ? UnityEngine.Sprites.DataUtility.GetOuterUV(panelImage)
+                    : new Vector4(0, 0, 1, 1);
+                cachedImageRect = imageRect;
+                cachedUV = uv;
+                ApplyUniforms(material, rect, cachedImageRect, cachedUV, cameraId);
             }
+            if (stencilMaterial != null && stencilMaterial != material && (changed || stencilMaterial != lastStencil))
+                ApplyUniforms(stencilMaterial, rect, cachedImageRect, cachedUV, cameraId);
+            if (pop != null && (changed || pop != lastPop))
+                ApplyUniforms(pop, rect, cachedImageRect, cachedUV, cameraId);
+            appearance = state;
+            appearanceValid = true;
+            lastStencil = stencilMaterial;
+            lastPop = pop;
         }
 
         void ApplyUniforms(Material target, Rect rect, Vector4 imageRect, Vector4 uv, float cameraId)
         {
-            target.SetFloat(UseDirectBackdrop, cameraBackdrop != null ? 1 : 0);
-            target.SetFloat(DirectBackdropReady, cameraBackdrop != null && cameraBackdrop.IsReady ? 1 : 0);
-            target.SetTexture(DirectBackdrop, cameraBackdrop != null && cameraBackdrop.IsReady
-                ? cameraBackdrop.BlurredTexture : Texture2D.blackTexture);
-            GlassImageSlicing.Apply(target, panelImage, imageType, rect, canvas, pixelsPerUnitMultiplier);
+            UIBlurImageSlicing.Apply(target, panelImage, imageType, rect, canvas, pixelsPerUnitMultiplier);
             target.SetFloat(PanelCamera, cameraId);
             target.SetVector(PanelRect, new Vector4(rect.xMin, rect.yMin,
                 Mathf.Max(0.0001f, rect.width), Mathf.Max(0.0001f, rect.height)));

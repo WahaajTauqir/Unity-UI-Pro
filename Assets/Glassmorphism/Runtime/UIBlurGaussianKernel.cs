@@ -4,7 +4,8 @@ namespace Glassmorphism
 {
     /// Builds a normalized separable kernel only when the radius changes.
     /// Adjacent source pixels share one bilinear fetch, without leaving sampling gaps.
-    public sealed class GlassBlurKernel
+    [UnityEngine.Scripting.APIUpdating.MovedFrom(true, "Glassmorphism", "Glassmorphism.WorldSpace", "GlassBlurKernel")]
+    public sealed class UIBlurGaussianKernel
     {
         static readonly int Enabled = Shader.PropertyToID("_BlurKernelEnabled");
         static readonly int Size = Shader.PropertyToID("_BlurSize");

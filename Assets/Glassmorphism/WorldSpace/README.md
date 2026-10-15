@@ -1,10 +1,12 @@
 # Glass on world space canvases and handheld AR
 
-For a live phone camera preview without AR, use [PhoneCameraGlass.unity and its setup notes](PhoneCameraTest.md). That scene uses an Overlay canvas with a directly shared WebCamTexture blur.
+Add **Glassmorphism → UI Blur**, choose **Source → Shared Backdrop**, and configure appearance there. [UIBlur](UIBlur.md) is the single user-facing panel component. `UIBlurSharedBackdrop` below refers to its hidden shared-backdrop backend, retained for compatibility.
 
-`WorldSpaceGlass` is a separate uGUI component for phone/tablet AR and normal perspective cameras. It uses `WorldGlassRendererFeature` to blur the camera color once per viewing camera. All panels viewed by that camera share the result. There are no capture cameras, CPU camera-image conversions, or capture-time UI toggles.
+For a live phone camera preview without AR, use [PhoneCameraGlass.unity and its setup notes](PhoneCameraTest.md). That scene draws its phone feed into the scene camera before the shared blur, using a Screen Space Camera canvas.
 
-The component supports both **World Space** and **Screen Space - Camera** canvases. For the latter, assign the viewing camera to the Canvas's Render Camera and the glass Source Camera. Screen Space Overlay is not supported. In either mode the backdrop includes the AR background and opaque geometry; it does not include other transparent UI. Use `GlassUIBlur` when you need to capture other screen space UI behind the panel.
+The `UIBlurSharedBackdrop` backend supports phone/tablet AR and normal perspective cameras. It uses `UIBlurRendererFeature` to blur the camera color once per viewing camera. All panels viewed by that camera share the result. There are no capture cameras, CPU camera-image conversions, or capture-time UI toggles.
+
+The component supports both **World Space** and **Screen Space - Camera** canvases. For the latter, assign the viewing camera to the Canvas's Render Camera and the glass Source Camera. Screen Space Overlay is not supported. In either mode the backdrop includes the AR background and opaque geometry; it does not include other transparent UI. Use `UIBlur → Screen Capture` when you need to capture other screen space UI behind the panel.
 
 ## Sliced images
 
@@ -15,7 +17,7 @@ Set the sprite's Border values in Sprite Editor, then choose **Image Type → Sl
 1. Drag `WorldSpaceGlassCanvas.prefab` into your scene and position/rotate it in front of your camera. It is a world space canvas about 0.354 × 0.270 metres at its default scale. In AR, parent it to your placed content/anchor.
 2. Assign the viewing **AR Camera** to the Canvas's **Event Camera** and the Glass Panel's **Source Camera**. The latter falls back to the canvas camera, then `Camera.main`.
 3. Put buttons and text under **Glass Panel / Content**. Set up an EventSystem/input module if you want interaction.
-4. Assign **Panel Image** on `WorldSpaceGlass`. One sprite supplies both the mask shape and decorative image. Use Image Color = white, alpha = 1; Tint alpha = 0; Border Width = 0; Corner Radius = 0 to preserve the sprite appearance. Keep RawImage Color white at full alpha. The sprite's own transparency remains intact for decoration, independently of the blur's silhouette.
+4. Assign **Panel Image** on `UIBlur`. One sprite supplies both the mask shape and decorative image. Use Image Color = white, alpha = 1; Tint alpha = 0; Border Width = 0; Corner Radius = 0 to preserve the sprite appearance. Keep RawImage Color white at full alpha. The sprite's own transparency remains intact for decoration, independently of the blur's silhouette.
 
 The project's `PC_Renderer` and `Mobile_Renderer` already contain **World Glass Backdrop**. On another renderer, select its Universal Renderer Data asset and choose **Add Renderer Feature → World Glass Renderer Feature**. Keep the feature's Blur Shader and the component's Panel Shader assigned so both shaders are included in builds. Avoid adding this feature twice to the same renderer.
 
@@ -33,7 +35,7 @@ The blur runs at **BeforeRenderingTransparents**, after the AR background and op
 - No capture is performed when that camera has no active world space glass components. Disable unused canvases/panels; active panels outside the view still request the shared blur.
 - Perspective projection is calculated in the shader, so a rotated panel samples the correct screen positions instead of stretching a cropped image across its quad. Native depth testing controls occlusion by opaque virtual objects.
 - The sprite overlay uses the same sRGB compositing as the screen space glass. Postprocessing and camera color grading can still change the final appearance.
-- This implementation targets Unity 6 / URP 17 Universal Renderer and monoscopic handheld AR. Render Graph was exercised here. A compatibility-mode path is included but was not exercised in this Unity configuration. XR stereo/headset rendering and 2D Renderer are not supported.
+- This implementation targets Unity 6 / URP 17 Universal Renderer. It includes XR per-eye sampling for single-pass instanced/multiview and multipass paths; see [VR setup and validation limits](VR.md). Render Graph and a synthetic stereo GPU check were exercised here. A compatibility-mode path is included but was not exercised in this Unity configuration. The 2D Renderer is not supported.
 
 ## Verification
 

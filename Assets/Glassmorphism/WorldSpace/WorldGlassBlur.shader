@@ -11,7 +11,8 @@ Shader "Glassmorphism/WorldGlassBlur"
         Tags { "RenderPipeline" = "UniversalPipeline" }
         ZWrite Off ZTest Always Cull Off
         HLSLINCLUDE
-        #pragma target 3.0
+        #pragma target 3.5
+        #pragma multi_compile_local_fragment _ UIBLUR_PRESERVE_ALPHA
         #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
         #include "Packages/com.unity.render-pipelines.core/Runtime/Utilities/Blit.hlsl"
         float _BlurSize;
@@ -26,24 +27,32 @@ Shader "Glassmorphism/WorldGlassBlur"
         }
         #define GLASS_SAMPLE(uv) SampleBackdrop(uv)
         #include "../Shaders/GlassGaussianKernel.hlsl"
+        half4 OutputColor(half4 color)
+        {
+            #if defined(UIBLUR_PRESERVE_ALPHA)
+                return color;
+            #else
+                return half4(color.rgb, 1);
+            #endif
+        }
         half4 Gaussian(float2 uv, float2 direction)
         {
             if (_BlurKernelEnabled > 0.5)
-                return half4(GlassGaussianBlur(uv, abs(_BlitTexture_TexelSize.xy) * direction).rgb, 1);
+                return OutputColor(GlassGaussianBlur(uv, abs(_BlitTexture_TexelSize.xy) * direction));
             float2 stepUV = _BlitTexture_TexelSize.xy * direction * _BlurSize;
             half4 color = SampleBackdrop(uv) * 0.227027;
             color += SampleBackdrop(uv + stepUV * 1.3846153) * 0.3162162;
             color += SampleBackdrop(uv - stepUV * 1.3846153) * 0.3162162;
             color += SampleBackdrop(uv + stepUV * 3.230767) * 0.07027;
             color += SampleBackdrop(uv - stepUV * 3.230767) * 0.07027;
-            return half4(color.rgb, 1);
+            return OutputColor(color);
         }
         half4 Copy(Varyings input) : SV_Target
         {
             UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
             float2 footprint = _BlitScaleBias.xy * _DownsampleTargetSize.xy;
             float2 count = clamp(ceil(abs(footprint / _BlitTexture_TexelSize.xy) * 0.5), 1, 4);
-            float3 sum = 0;
+            float4 sum = 0;
             [unroll] for (int y = 0; y < 4; y++)
             {
                 [unroll] for (int x = 0; x < 4; x++)
@@ -51,11 +60,11 @@ Shader "Glassmorphism/WorldGlassBlur"
                     if (x < count.x && y < count.y)
                     {
                         float2 offset = ((float2(x, y) + 0.5) / count - 0.5) * footprint;
-                        sum += SampleBackdrop(input.texcoord + offset).rgb;
+                        sum += SampleBackdrop(input.texcoord + offset);
                     }
                 }
             }
-            return half4(sum / (count.x * count.y), 1);
+            return OutputColor(sum / (count.x * count.y));
         }
         half4 Horizontal(Varyings input) : SV_Target
         {

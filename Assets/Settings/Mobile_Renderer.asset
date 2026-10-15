@@ -13,11 +13,9 @@ MonoBehaviour:
   m_Name: Mobile_Renderer
   m_EditorClassIdentifier: 
   debugShaders:
-    debugReplacementPS: {fileID: 4800000, guid: cf852408f2e174538bcd9b7fda1c5ae7,
-      type: 3}
+    debugReplacementPS: {fileID: 4800000, guid: cf852408f2e174538bcd9b7fda1c5ae7, type: 3}
     hdrDebugViewPS: {fileID: 4800000, guid: 573620ae32aec764abd4d728906d2587, type: 3}
-    probeVolumeSamplingDebugComputeShader: {fileID: 7200000, guid: 53626a513ea68ce47b59dc1299fe3959,
-      type: 3}
+    probeVolumeSamplingDebugComputeShader: {fileID: 7200000, guid: 53626a513ea68ce47b59dc1299fe3959, type: 3}
   probeVolumeResources:
     probeVolumeDebugShader: {fileID: 0}
     probeVolumeFragmentationDebugShader: {fileID: 0}
@@ -27,17 +25,22 @@ MonoBehaviour:
     probeSamplingDebugTexture: {fileID: 0}
     probeVolumeBlendStatesCS: {fileID: 0}
   m_RendererFeatures:
+  - {fileID: 7465667004907928947}
   - {fileID: 1927864781808036097}
-  m_RendererFeatureMap: 0169a706ce26c11a
+  m_RendererFeatureMap: 733de40e96609b670169a706ce26c11a
   m_UseNativeRenderPass: 1
+  xrSystemData: {fileID: 0}
   postProcessData: {fileID: 11400000, guid: 41439944d30ece34e96484bdb6645b55, type: 2}
-  m_AssetVersion: 2
+  m_AssetVersion: 3
+  m_PrepassLayerMask:
+    serializedVersion: 2
+    m_Bits: 4294967295
   m_OpaqueLayerMask:
     serializedVersion: 2
     m_Bits: 4294967295
   m_TransparentLayerMask:
     serializedVersion: 2
-    m_Bits: 4294967295
+    m_Bits: 2147483647
   m_DefaultStencilState:
     overrideStencilState: 0
     stencilReference: 0
@@ -49,6 +52,8 @@ MonoBehaviour:
   m_RenderingMode: 0
   m_DepthPrimingMode: 0
   m_CopyDepthMode: 0
+  m_DepthAttachmentFormat: 0
+  m_DepthTextureFormat: 0
   m_AccurateGbufferNormals: 0
   m_IntermediateTextureMode: 0
 --- !u!114 &1927864781808036097
@@ -61,11 +66,24 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 10060067f4a354ba4975897aef40fae8, type: 3}
-  m_Name: World Glass Backdrop
-  m_EditorClassIdentifier: Glassmorphism.WorldSpace::Glassmorphism.WorldGlassRendererFeature
+  m_Name: UI Blur Backdrop
+  m_EditorClassIdentifier: Glassmorphism.WorldSpace::Glassmorphism.UIBlurRendererFeature
   m_Active: 1
   downsample: 4
   blurSize: 1
   blurIterations: 1
   hdrCapture: 0
   blurShader: {fileID: 4800000, guid: 6d2ab646a6f9e4e2790e8a25880cc928, type: 3}
+--- !u!114 &7465667004907928947
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: eaf8f0d1ef9ed4488b6b7e07563f9c29, type: 3}
+  m_Name: Phone Camera Background
+  m_EditorClassIdentifier: Glassmorphism.WorldSpace::Glassmorphism.PhoneCameraBackgroundRendererFeature
+  m_Active: 1

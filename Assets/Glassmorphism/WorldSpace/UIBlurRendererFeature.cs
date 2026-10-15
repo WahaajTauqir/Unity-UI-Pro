@@ -7,10 +7,13 @@ using UnityEngine.Rendering.Universal;
 
 namespace Glassmorphism
 {
-    /// Blurs the camera color after AR background/opaque rendering and before glass UI.
-    /// One shared result per camera, independent of panel count. No secondary camera.
-    public sealed class WorldGlassRendererFeature : ScriptableRendererFeature
+    /// Schedules shared scene/AR/XR blur before transparent UI, and main-camera
+    /// Screen Capture blur after background UI. No secondary capture cameras.
+    [UnityEngine.Scripting.APIUpdating.MovedFrom(true, "Glassmorphism", "Glassmorphism.WorldSpace", "WorldGlassRendererFeature")]
+    public sealed class UIBlurRendererFeature : ScriptableRendererFeature
     {
+        [Header("Shared Backdrop Quality")]
+        [Tooltip("These quality settings apply to Shared Backdrop. Screen Capture uses each UI Blur panel’s Capture Quality.")]
         [Range(1, 8)] public int downsample = 4;
         [Range(0, 8)] public float blurSize = 1;
         [Range(1, 4)] public int blurIterations = 1;
@@ -20,30 +23,36 @@ namespace Glassmorphism
 
         Material material;
         BlurPass pass;
+        UIBlurScreenCapturePass screenCapturePass;
 
         public override void Create()
         {
             pass?.Dispose();
+            screenCapturePass?.Dispose();
             CoreUtils.Destroy(material);
             if (blurShader == null) blurShader = Shader.Find("Glassmorphism/WorldGlassBlur");
             material = blurShader != null ? CoreUtils.CreateEngineMaterial(blurShader) : null;
             pass = new BlurPass();
+            screenCapturePass = new UIBlurScreenCapturePass();
         }
 
         public override void AddRenderPasses(ScriptableRenderer renderer, ref RenderingData renderingData)
         {
             Camera camera = renderingData.cameraData.camera;
-            bool capture = camera.cameraType == CameraType.Game && !camera.stereoEnabled
-                && WorldSpaceGlass.HasPanelsFor(camera) && material != null;
+            bool capture = camera.cameraType == CameraType.Game
+                && UIBlurSharedBackdrop.HasPanelsFor(camera) && material != null;
             pass.Setup(material, capture, camera.GetInstanceID(), downsample, blurSize, blurIterations, hdrCapture);
             // Even cameras without panels reset the globals, preventing another
             // camera's backdrop from leaking into a later view.
             renderer.EnqueuePass(pass);
+            screenCapturePass.Setup(camera, blurShader);
+            renderer.EnqueuePass(screenCapturePass);
         }
 
         protected override void Dispose(bool disposing)
         {
             pass?.Dispose();
+            screenCapturePass?.Dispose();
             CoreUtils.Destroy(material);
         }
 
@@ -54,7 +63,7 @@ namespace Glassmorphism
             static readonly int DownsampleTargetSize = Shader.PropertyToID("_DownsampleTargetSize");
             readonly ProfilingSampler profiling = new ProfilingSampler("World Glass Backdrop");
             Material material;
-            readonly GlassBlurKernel blurKernel = new GlassBlurKernel();
+            readonly UIBlurGaussianKernel blurKernel = new UIBlurGaussianKernel();
             bool capture, hdr;
             int cameraId, downsample, iterations;
             RTHandle a, b;
@@ -75,6 +84,8 @@ namespace Glassmorphism
 
             RenderTextureDescriptor BlurDescriptor(RenderTextureDescriptor descriptor)
             {
+                // Preserve XR dimension, volumeDepth and vrUsage from the camera:
+                // SPI/multiview needs both array slices; multipass uses the current eye.
                 descriptor.width = Mathf.Max(2, descriptor.width / downsample);
                 descriptor.height = Mathf.Max(2, descriptor.height / downsample);
                 descriptor.depthBufferBits = 0;
@@ -138,6 +149,8 @@ namespace Glassmorphism
                     var descriptor = BlurDescriptor(cameraData.cameraTargetDescriptor);
                     var first = UniversalRenderer.CreateRenderGraphTexture(graph, descriptor, "WorldGlass_A", false, FilterMode.Bilinear, TextureWrapMode.Clamp);
                     var second = UniversalRenderer.CreateRenderGraphTexture(graph, descriptor, "WorldGlass_B", false, FilterMode.Bilinear, TextureWrapMode.Clamp);
+                    // Default numSlices/sourceSlice = -1 keeps URP's XR-aware blits:
+                    // the runtime binds both eye slices and supplies stereo draw state.
                     graph.AddBlitPass(new RenderGraphUtils.BlitMaterialParameters(resources.activeColorTexture, first, material, 0), passName: "World Glass Downsample");
                     for (int i = 0; i < iterations; i++)
                     {

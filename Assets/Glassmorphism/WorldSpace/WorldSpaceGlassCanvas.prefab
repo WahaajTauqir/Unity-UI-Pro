@@ -13,6 +13,7 @@ GameObject:
   - component: {fileID: 4720710714265899491}
   - component: {fileID: 4369890337977407609}
   - component: {fileID: 5619779369561148378}
+  - component: {fileID: 8237572595474730144}
   m_Layer: 0
   m_Name: Glass Panel
   m_TagString: Untagged
@@ -99,9 +100,11 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 7094aa5831cf54954bd3585bafbebe61, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Glassmorphism.WorldSpace::Glassmorphism.WorldSpaceGlass
+  m_EditorClassIdentifier: Glassmorphism.WorldSpace::Glassmorphism.UIBlurSharedBackdrop
   sourceCamera: {fileID: 0}
   panelImage: {fileID: 21300000, guid: f35c16f75e2474224b8083688956777d, type: 3}
+  imageType: 0
+  pixelsPerUnitMultiplier: 1
   imageColor: {r: 1, g: 1, b: 1, a: 1}
   preserveImageAspect: 1
   maskWithPanelImage: 1
@@ -110,6 +113,41 @@ MonoBehaviour:
   borderWidth: 0
   borderColor: {r: 1, g: 1, b: 1, a: 0.5}
   panelShader: {fileID: 4800000, guid: ef455468bbf1f429fa57a5276e5936ba, type: 3}
+--- !u!114 &8237572595474730144
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1384019992844393493}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 93087c40533fc4c57ae332498ef662c0, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Glassmorphism.WorldSpace::Glassmorphism.UIBlur
+  source: 1
+  sourceCamera: {fileID: 0}
+  sourceCanvas: {fileID: 0}
+  downsample: 2
+  blurSize: 1
+  blurIterations: 1
+  hdrCapture: 0
+  panelImage: {fileID: 21300000, guid: f35c16f75e2474224b8083688956777d, type: 3}
+  imageType: 0
+  pixelsPerUnitMultiplier: 1
+  imageColor: {r: 1, g: 1, b: 1, a: 1}
+  preserveImageAspect: 1
+  maskWithPanelImage: 1
+  tint: {r: 0, g: 0, b: 0, a: 0}
+  cornerRadius: 0
+  borderWidth: 0
+  borderColor: {r: 1, g: 1, b: 1, a: 0.5}
+  captureBlurShader: {fileID: 4800000, guid: c6635031514dda648a1eddedff8bbda8, type: 3}
+  capturePanelShader: {fileID: 4800000, guid: 8da52fb3e4274c0fa739b68c8aa427e0, type: 3}
+  backdropPanelShader: {fileID: 4800000, guid: ef455468bbf1f429fa57a5276e5936ba, type: 3}
+  captureModule: {fileID: 0}
+  backdropModule: {fileID: 5619779369561148378}
+  initialized: 1
 --- !u!1 &6142256808453355784
 GameObject:
   m_ObjectHideFlags: 0

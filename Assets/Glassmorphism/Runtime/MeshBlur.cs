@@ -10,9 +10,10 @@ namespace Glassmorphism
     /// downsampled RT, two separable Gaussian passes blur it, the result is fed into the
     /// panel shader as _MainTex. Panel world size is taken from transform.lossyScale.xy.
     [ExecuteAlways]
-    [AddComponentMenu("Glassmorphism/Glass Panel")]
+    [AddComponentMenu("Glassmorphism/Mesh Blur")]
     [RequireComponent(typeof(MeshFilter), typeof(MeshRenderer))]
-    public sealed class GlassPanel : MonoBehaviour
+    [UnityEngine.Scripting.APIUpdating.MovedFrom(true, "Glassmorphism", "Glassmorphism", "GlassPanel")]
+    public sealed class MeshBlur : MonoBehaviour
     {
         [Header("Capture")]
         [Tooltip("Camera the player views the scene through. Leave empty to use Camera.main.")]
@@ -244,7 +245,7 @@ namespace Glassmorphism
                 Shader s = panelShader != null ? panelShader : Shader.Find("Glassmorphism/GlassPanel");
                 if (s == null)
                 {
-                    Debug.LogError("[Glassmorphism] Shader 'Glassmorphism/GlassPanel' not found.");
+                    Debug.LogError("[Glassmorphism] Shader 'Glassmorphism/MeshBlur' not found.");
                     return;
                 }
                 panelMaterial = new Material(s) { hideFlags = HideFlags.HideAndDontSave };

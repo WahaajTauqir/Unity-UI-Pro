@@ -4,6 +4,8 @@ Shader "Glassmorphism/GlassUIPanel"
     {
         [PerRendererData] _MainTex ("Backdrop", 2D) = "white" {}
         _OverlayTex ("Panel Image", 2D) = "white" {}
+        [HideInInspector] _CaptureGroup ("Main Camera Capture Group", Float) = -1
+        [HideInInspector] _CaptureCameraID ("Capture Camera", Float) = 0
         [HideInInspector] _PanelRect ("Panel Rect", Vector) = (0,0,1,1)
         [HideInInspector] _BackdropUV ("Backdrop UV", Vector) = (0,0,1,1)
         [HideInInspector] _OverlayRect ("Image Rect", Vector) = (0,0,1,1)
@@ -55,6 +57,20 @@ Shader "Glassmorphism/GlassUIPanel"
             #include "GlassImageSlicing.hlsl"
 
             sampler2D _MainTex, _OverlayTex;
+            sampler2D _UICaptureBackdrop0, _UICaptureBackdrop1, _UICaptureBackdrop2, _UICaptureBackdrop3;
+            sampler2D _UICaptureBackdrop4, _UICaptureBackdrop5, _UICaptureBackdrop6, _UICaptureBackdrop7;
+            float _CaptureGroup, _CaptureCameraID, _UICaptureCameraID, _UICaptureGroupCount;
+            fixed4 CaptureSample(float2 uv)
+            {
+                [branch] if (_CaptureGroup < 0.5) return tex2D(_UICaptureBackdrop0, uv);
+                [branch] if (_CaptureGroup < 1.5) return tex2D(_UICaptureBackdrop1, uv);
+                [branch] if (_CaptureGroup < 2.5) return tex2D(_UICaptureBackdrop2, uv);
+                [branch] if (_CaptureGroup < 3.5) return tex2D(_UICaptureBackdrop3, uv);
+                [branch] if (_CaptureGroup < 4.5) return tex2D(_UICaptureBackdrop4, uv);
+                [branch] if (_CaptureGroup < 5.5) return tex2D(_UICaptureBackdrop5, uv);
+                [branch] if (_CaptureGroup < 6.5) return tex2D(_UICaptureBackdrop6, uv);
+                return tex2D(_UICaptureBackdrop7, uv);
+            }
             float4 _PanelRect, _BackdropUV, _OverlayRect, _OverlayUV, _ClipRect;
             fixed4 _OverlayColor, _TintColor, _BorderColor, _TextureSampleAdd;
             float _OverlayEnabled, _MaskWithImage, _CornerRadius, _BorderWidth;
@@ -90,7 +106,14 @@ Shader "Glassmorphism/GlassUIPanel"
                 // Canvas batching transforms vertex positions. Recover panel UVs from
                 // the RawImage crop instead, so the shape stays attached to the panel.
                 float2 localUV = (i.backdropUV - _BackdropUV.xy) / _BackdropUV.zw;
-                fixed4 color = tex2D(_MainTex, i.backdropUV) + _TextureSampleAdd;
+                fixed4 color;
+                if (_CaptureGroup >= 0)
+                {
+                    clip(_UICaptureCameraID == _CaptureCameraID && _CaptureGroup < _UICaptureGroupCount ? 1 : -1);
+                    color = CaptureSample(i.backdropUV);
+                }
+                else color = tex2D(_MainTex, i.backdropUV);
+                color += _TextureSampleAdd;
                 color.rgb = lerp(color.rgb, _TintColor.rgb, _TintColor.a);
                 if (_OverlayEnabled > 0.5)
                 {
