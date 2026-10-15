@@ -1,0 +1,10 @@
+{
+    "name": "Glassmorphism.WorldSpace",
+    "rootNamespace": "Glassmorphism",
+    "references": [
+        "Glassmorphism",
+        "UnityEngine.UI",
+        "Unity.RenderPipelines.Core.Runtime",
+        "Unity.RenderPipelines.Universal.Runtime"
+    ]
+}

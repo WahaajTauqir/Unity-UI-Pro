@@ -1,8 +1,12 @@
 # Glassmorphism — Frosted-Glass Panels for URP
 
+For phone/tablet AR and perspective **world space canvases**, use the separate [WorldSpaceGlass component and starter prefab](WorldSpace/README.md). It shares one camera-color blur between panels without secondary capture cameras.
+
 `GlassUIBlur` is the uGUI blur used by `Assets/Scenes/UI.unity`. It captures the Screen Space Camera canvas at the source camera's full pixel dimensions so the canvas does not change scale, then downsamples once and applies separable Gaussian blur. The panel displays its screen region through `RawImage.uvRect`. The scene uses `Downsample = 2`, `Blur Size = 1`, and `Blur Iterations = 2`. `HDR Capture` is off by default to reduce render target bandwidth. Enable it only if the glass must preserve HDR highlights.
 
 This UI path still renders an extra camera each frame. The cost scales with the capture resolution and scene complexity. Profile the blur camera in Unity's Frame Debugger or GPU Profiler on the target device before adding many blur panels.
+
+Downsampling now filters the source pixel footprint instead of taking a single sample that can miss thin details. A reduction of 2 uses one bilinear fetch, 4 uses four, and 8 uses sixteen (actual counts follow the texture dimensions). This replaces the existing downsample pass; it does not add a pass. Small blur radii up to 1 retain the five-fetch filter. Wider radii use a normalized Gaussian kernel with adjacent pixels paired through bilinear filtering, up to 33 fetches per direction at radius 8. This avoids the broad bands produced by stretching five samples far apart. Kernel weights are computed on the CPU only when the radius or material changes. High downsampling still reduces detail and cannot provide full-resolution quality.
 
 ### uGUI panel appearance
 

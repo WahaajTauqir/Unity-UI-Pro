@@ -4,6 +4,8 @@ Shader "Glassmorphism/SeparableBlur"
     {
         _MainTex  ("Source", 2D) = "white" {}
         _BlurSize ("Blur Size (texels)", Float) = 2
+        [HideInInspector] _DownsampleFootprint ("Downsample Footprint", Vector) = (1,1,0,0)
+        [HideInInspector] _BlurKernelEnabled ("Dense Kernel", Float) = 0
     }
 
     SubShader
@@ -12,11 +14,15 @@ Shader "Glassmorphism/SeparableBlur"
         ZTest Always Cull Off ZWrite Off
 
         CGINCLUDE
+        #pragma target 3.0
         #include "UnityCG.cginc"
 
         sampler2D _MainTex;
         float4 _MainTex_TexelSize;
         float _BlurSize;
+        float4 _DownsampleFootprint;
+        #define GLASS_SAMPLE(uv) tex2D(_MainTex, uv)
+        #include "GlassGaussianKernel.hlsl"
 
         struct v2f
         {
@@ -34,6 +40,8 @@ Shader "Glassmorphism/SeparableBlur"
 
         fixed4 GaussianBlur(float2 uv, float2 dir)
         {
+            if (_BlurKernelEnabled > 0.5)
+                return GlassGaussianBlur(uv, abs(_MainTex_TexelSize.xy) * dir);
             float2 stepUV = _MainTex_TexelSize.xy * dir * _BlurSize;
             // Bilinear filtering approximates the nine-tap kernel with five fetches.
             fixed4 col = tex2D(_MainTex, uv) * 0.227027;
@@ -46,6 +54,27 @@ Shader "Glassmorphism/SeparableBlur"
 
         fixed4 FragHorizontal(v2f i) : SV_Target { return GaussianBlur(i.uv, float2(1, 0)); }
         fixed4 FragVertical  (v2f i) : SV_Target { return GaussianBlur(i.uv, float2(0, 1)); }
+
+        fixed4 FragDownsample(v2f i) : SV_Target
+        {
+            // Each bilinear fetch covers up to 2x2 source pixels. Use a larger
+            // footprint for 3x-8x reduction instead of skipping source details.
+            float2 count = clamp(ceil(_DownsampleFootprint.xy * 0.5), 1, 4);
+            float2 footprint = abs(_MainTex_TexelSize.xy) * _DownsampleFootprint.xy;
+            float4 sum = 0;
+            [unroll] for (int y = 0; y < 4; y++)
+            {
+                [unroll] for (int x = 0; x < 4; x++)
+                {
+                    if (x < count.x && y < count.y)
+                    {
+                        float2 offset = ((float2(x, y) + 0.5) / count - 0.5) * footprint;
+                        sum += tex2D(_MainTex, i.uv + offset);
+                    }
+                }
+            }
+            return sum / (count.x * count.y);
+        }
         ENDCG
 
         Pass
@@ -63,6 +92,15 @@ Shader "Glassmorphism/SeparableBlur"
             CGPROGRAM
             #pragma vertex   Vert
             #pragma fragment FragVertical
+            ENDCG
+        }
+
+        Pass
+        {
+            Name "FilteredDownsample"
+            CGPROGRAM
+            #pragma vertex Vert
+            #pragma fragment FragDownsample
             ENDCG
         }
     }

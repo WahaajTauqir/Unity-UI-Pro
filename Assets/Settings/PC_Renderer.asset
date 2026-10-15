@@ -35,7 +35,8 @@ MonoBehaviour:
       type: 3}
   m_RendererFeatures:
   - {fileID: 7833122117494664109}
-  m_RendererFeatureMap: ad6b866f10d7b46c
+  - {fileID: 2420271916322517775}
+  m_RendererFeatureMap: ad6b866f10d7b46c0ff341187c889621
   m_UseNativeRenderPass: 1
   postProcessData: {fileID: 11400000, guid: 41439944d30ece34e96484bdb6645b55, type: 2}
   m_AssetVersion: 2
@@ -93,3 +94,21 @@ MonoBehaviour:
   - {fileID: 2800000, guid: 3302065f671a8450b82c9ddf07426f3a, type: 3}
   - {fileID: 2800000, guid: 56a77a3e8d64f47b6afe9e3c95cb57d5, type: 3}
   m_Shader: {fileID: 4800000, guid: 0849e84e3d62649e8882e9d6f056a017, type: 3}
+--- !u!114 &2420271916322517775
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 10060067f4a354ba4975897aef40fae8, type: 3}
+  m_Name: World Glass Backdrop
+  m_EditorClassIdentifier: Glassmorphism.WorldSpace::Glassmorphism.WorldGlassRendererFeature
+  m_Active: 1
+  downsample: 4
+  blurSize: 1
+  blurIterations: 1
+  hdrCapture: 0
+  blurShader: {fileID: 4800000, guid: 6d2ab646a6f9e4e2790e8a25880cc928, type: 3}

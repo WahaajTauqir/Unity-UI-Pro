@@ -54,6 +54,7 @@ namespace Glassmorphism
         RectTransform rectTransform;
         Camera blurCamera;
         Material blurMaterial;
+        readonly GlassBlurKernel blurKernel = new GlassBlurKernel();
         Material panelMaterial;
         Material previousMaterial;
         RenderTexture fullRt;
@@ -62,7 +63,7 @@ namespace Glassmorphism
         Vector2Int currentFullSize;
         Vector2Int currentBlurSize;
         RenderTextureFormat currentFormat;
-        static readonly int IdBlurSize = Shader.PropertyToID("_BlurSize");
+        static readonly int IdDownsampleFootprint = Shader.PropertyToID("_DownsampleFootprint");
         static readonly int IdPanelRect = Shader.PropertyToID("_PanelRect");
         static readonly int IdBackdropUV = Shader.PropertyToID("_BackdropUV");
         static readonly int IdOverlayTex = Shader.PropertyToID("_OverlayTex");
@@ -167,8 +168,12 @@ namespace Glassmorphism
                 Canvas.ForceUpdateCanvases();
             }
 
-            Graphics.Blit(fullRt, blurRtA);
-            blurMaterial.SetFloat(IdBlurSize, blurSize);
+            // Filter the whole destination pixel footprint before dropping pixels.
+            // A single bilinear sample aliases thin lines at large reduction ratios.
+            blurMaterial.SetVector(IdDownsampleFootprint,
+                new Vector4((float)fullW / blurW, (float)fullH / blurH, 0, 0));
+            Graphics.Blit(fullRt, blurRtA, blurMaterial, 2);
+            blurKernel.Apply(blurMaterial, blurSize);
             for (int i = 0; i < blurIterations; i++)
             {
                 Graphics.Blit(blurRtA, blurRtB, blurMaterial, 0);
