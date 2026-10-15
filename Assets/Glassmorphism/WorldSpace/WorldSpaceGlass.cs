@@ -13,6 +13,8 @@ namespace Glassmorphism
     {
         [Tooltip("The camera viewing this canvas. Assign the AR Camera in AR. Falls back to the canvas camera, then Camera.main.")]
         public Camera sourceCamera;
+        [Tooltip("Optional live phone camera backdrop. Assign this for Screen Space Overlay camera-preview UI.")]
+        public PhoneCameraBackdrop cameraBackdrop;
 
         [Header("Panel Appearance")]
         public Sprite panelImage;
@@ -46,6 +48,9 @@ namespace Glassmorphism
         static readonly int CornerRadius = Shader.PropertyToID("_CornerRadius");
         static readonly int BorderWidth = Shader.PropertyToID("_BorderWidth");
         static readonly int BorderColor = Shader.PropertyToID("_BorderColor");
+        static readonly int DirectBackdrop = Shader.PropertyToID("_DirectBackdrop");
+        static readonly int UseDirectBackdrop = Shader.PropertyToID("_UseDirectBackdrop");
+        static readonly int DirectBackdropReady = Shader.PropertyToID("_DirectBackdropReady");
 
         RawImage image;
         RectTransform rectTransform;
@@ -62,7 +67,7 @@ namespace Glassmorphism
         {
             foreach (WorldSpaceGlass panel in Panels)
             {
-                if (panel != null && panel.isActiveAndEnabled && panel.canvas != null
+                if (panel != null && panel.cameraBackdrop == null && panel.isActiveAndEnabled && panel.canvas != null
                     && panel.canvas.isActiveAndEnabled && panel.canvas.renderMode != RenderMode.ScreenSpaceOverlay
                     && panel.ViewingCamera == camera)
                     return true;
@@ -169,6 +174,10 @@ namespace Glassmorphism
 
         void ApplyUniforms(Material target, Rect rect, Vector4 imageRect, Vector4 uv, float cameraId)
         {
+            target.SetFloat(UseDirectBackdrop, cameraBackdrop != null ? 1 : 0);
+            target.SetFloat(DirectBackdropReady, cameraBackdrop != null && cameraBackdrop.IsReady ? 1 : 0);
+            target.SetTexture(DirectBackdrop, cameraBackdrop != null && cameraBackdrop.IsReady
+                ? cameraBackdrop.BlurredTexture : Texture2D.blackTexture);
             GlassImageSlicing.Apply(target, panelImage, imageType, rect, canvas, pixelsPerUnitMultiplier);
             target.SetFloat(PanelCamera, cameraId);
             target.SetVector(PanelRect, new Vector4(rect.xMin, rect.yMin,

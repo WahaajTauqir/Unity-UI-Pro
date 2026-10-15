@@ -1,5 +1,7 @@
 # Glass on world space canvases and handheld AR
 
+For a live phone camera preview without AR, use [PhoneCameraGlass.unity and its setup notes](PhoneCameraTest.md). That scene uses an Overlay canvas with a directly shared WebCamTexture blur.
+
 `WorldSpaceGlass` is a separate uGUI component for phone/tablet AR and normal perspective cameras. It uses `WorldGlassRendererFeature` to blur the camera color once per viewing camera. All panels viewed by that camera share the result. There are no capture cameras, CPU camera-image conversions, or capture-time UI toggles.
 
 The component supports both **World Space** and **Screen Space - Camera** canvases. For the latter, assign the viewing camera to the Canvas's Render Camera and the glass Source Camera. Screen Space Overlay is not supported. In either mode the backdrop includes the AR background and opaque geometry; it does not include other transparent UI. Use `GlassUIBlur` when you need to capture other screen space UI behind the panel.

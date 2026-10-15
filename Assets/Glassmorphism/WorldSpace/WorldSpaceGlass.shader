@@ -4,6 +4,9 @@ Shader "Glassmorphism/WorldSpaceGlass"
     {
         [PerRendererData] _MainTex ("Backdrop", 2D) = "white" {}
         _OverlayTex ("Panel Image", 2D) = "white" {}
+        [HideInInspector] _DirectBackdrop ("Direct Camera Backdrop", 2D) = "black" {}
+        [HideInInspector] _UseDirectBackdrop ("Use Direct Backdrop", Float) = 0
+        [HideInInspector] _DirectBackdropReady ("Direct Backdrop Ready", Float) = 0
         [HideInInspector] _PanelRect ("Panel Rect", Vector) = (0,0,1,1)
         [HideInInspector] _PanelCameraID ("Viewing Camera", Float) = 0
         [HideInInspector] _OverlayRect ("Image Rect", Vector) = (0,0,1,1)
@@ -54,7 +57,8 @@ Shader "Glassmorphism/WorldSpaceGlass"
             #include "UnityUI.cginc"
             #include "../Shaders/GlassImageSlicing.hlsl"
 
-            sampler2D _WorldGlassBackdrop, _OverlayTex;
+            sampler2D _WorldGlassBackdrop, _OverlayTex, _DirectBackdrop;
+            float _UseDirectBackdrop, _DirectBackdropReady;
             float _WorldGlassCameraID, _PanelCameraID;
             float4 _PanelRect, _OverlayRect, _OverlayUV, _ClipRect;
             fixed4 _OverlayColor, _TintColor, _BorderColor, _TextureSampleAdd;
@@ -92,10 +96,13 @@ Shader "Glassmorphism/WorldSpaceGlass"
             {
                 // Perspective-correct screen projection keeps the backdrop aligned
                 // when the world canvas rotates, moves, or crosses the viewport.
-                clip(_PanelCameraID == 0 || _WorldGlassCameraID != _PanelCameraID ? -1 : 1);
+                if (_UseDirectBackdrop > 0.5) clip(_DirectBackdropReady - 0.5);
+                else clip(_PanelCameraID == 0 || _WorldGlassCameraID != _PanelCameraID ? -1 : 1);
                 float2 localUV = i.panelUV;
                 float2 screenUV = i.screenPosition.xy / i.screenPosition.w;
-                fixed4 color = fixed4(tex2D(_WorldGlassBackdrop, screenUV).rgb, 1);
+                fixed4 color;
+                if (_UseDirectBackdrop > 0.5) color = fixed4(tex2D(_DirectBackdrop, screenUV).rgb, 1);
+                else color = fixed4(tex2D(_WorldGlassBackdrop, screenUV).rgb, 1);
                 color.rgb = lerp(color.rgb, _TintColor.rgb, _TintColor.a);
                 if (_OverlayEnabled > 0.5)
                 {
